@@ -1,0 +1,4 @@
+node_modules/.vite/deps/react-router-dom.js:      router2.fetch = instrumentedFetch;
+node_modules/.vite/deps/react-router-dom.js:    if (prefetch === "render") {
+node_modules/.vite/deps/react-router-dom.js:    if (prefetch === "viewport") {
+node_modules/.vite/deps/react-router-dom.js:    prefetch = "none",

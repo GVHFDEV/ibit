@@ -1,0 +1,393 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "vhfgustavo@gmail.com" && request.auth.token.email_verified == true));
+    }
+    
+    function isValidQuadro(data) {
+      return hasOnlyAllowedFields(['projectId', 'name', 'nodes', 'edges', 'ownerId', 'createdAt', 'updatedAt']) &&
+             data.projectId is string && 
+             data.name is string &&
+             data.nodes is list &&
+             data.edges is list &&
+             data.ownerId is string &&
+             data.createdAt is timestamp &&
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
+    }
+    
+    function isValidInventoryItem(data) {
+      return hasOnlyAllowedFields(['projectId', 'name', 'description', 'quantity', 'unitPrice', 'totalPrice', 'location', 'tags', 'assignedTo', 'taskId', 'createdAt', 'updatedAt']) &&
+             data.projectId is string &&
+             data.name is string &&
+             data.quantity is number &&
+             data.unitPrice is number &&
+             data.totalPrice is number &&
+             data.tags is list &&
+             data.assignedTo is list &&
+             data.createdAt is timestamp &&
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
+    }
+
+    function isValidProjectTag(data) {
+      return hasOnlyAllowedFields(['projectId', 'label', 'color', 'createdAt', 'updatedAt']) &&
+             data.projectId is string && 
+             data.label is string &&
+             data.color is string &&
+             data.createdAt is timestamp &&
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
+    }
+
+    function isValidAssetFolder(data) {
+      return hasOnlyAllowedFields(['projectId', 'parentId', 'name', 'order', 'ownerId', 'createdAt', 'updatedAt']) &&
+             data.projectId is string &&
+             (!( 'parentId' in data ) || data.parentId == null || data.parentId is string) &&
+             data.name is string &&
+             data.order is number &&
+             data.ownerId is string &&
+             data.createdAt is timestamp &&
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
+    }
+
+    function isValidAssetLink(data) {
+      return hasOnlyAllowedFields(['projectId', 'folderId', 'name', 'url', 'ownerId', 'createdAt', 'updatedAt']) &&
+             data.projectId is string &&
+             (!( 'folderId' in data ) || data.folderId == null || data.folderId is string) &&
+             data.name is string &&
+             data.url is string &&
+             data.ownerId is string &&
+             data.createdAt is timestamp &&
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
+    }
+
+    function isValidRACIMatrix(data) {
+      return hasOnlyAllowedFields(['projectId', 'name', 'ownerId', 'createdAt', 'updatedAt']) &&
+             data.projectId is string &&
+             data.name is string &&
+             data.ownerId is string &&
+             data.createdAt is timestamp &&
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
+    }
+
+    function isValidRACITask(data) {
+      return hasOnlyAllowedFields(['matrixId', 'projectId', 'title', 'order', 'createdAt', 'updatedAt']) &&
+             data.matrixId is string &&
+             data.projectId is string &&
+             data.title is string &&
+             data.order is number &&
+             data.createdAt is timestamp &&
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
+    }
+
+    function isValidRACIStakeholder(data) {
+      return hasOnlyAllowedFields(['matrixId', 'projectId', 'name', 'role', 'userId', 'order', 'createdAt', 'updatedAt']) &&
+             data.matrixId is string &&
+             data.projectId is string &&
+             data.name is string &&
+             (!( 'role' in data ) || data.role is string) &&
+             (!( 'userId' in data ) || data.userId is string) &&
+             data.order is number &&
+             data.createdAt is timestamp &&
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
+    }
+
+    function isValidRACIAssignment(data) {
+      return hasOnlyAllowedFields(['matrixId', 'projectId', 'taskId', 'participantId', 'role', 'updatedAt']) &&
+             data.matrixId is string &&
+             data.projectId is string &&
+             data.taskId is string &&
+             data.participantId is string &&
+             (data.role == null || data.role in ['R', 'A', 'C', 'I']) &&
+             data.updatedAt is timestamp;
+    }
+
+    // GANTT & PROJECT STAKEHOLDERS
+    function isValidGanttTask(data) {
+      return hasOnlyAllowedFields(['projectId', 'title', 'description', 'section', 'category', 'dependencies', 'assignedTo', 'startDate', 'endDate', 'status', 'progress', 'color', 'order', 'createdAt', 'updatedAt']) &&
+             data.projectId is string &&
+             data.title is string &&
+             (!( 'description' in data ) || data.description is string) &&
+             (!( 'section' in data ) || data.section is string) &&
+             (!( 'category' in data ) || data.category is string) &&
+             (!( 'dependencies' in data ) || data.dependencies is string) &&
+             (!( 'assignedTo' in data ) || data.assignedTo is list) &&
+             data.startDate is timestamp &&
+             data.endDate is timestamp &&
+             data.status in ['pending', 'in_progress', 'completed', 'delayed'] &&
+             data.progress is number &&
+             (!( 'color' in data ) || data.color is string) &&
+             data.order is number &&
+             data.createdAt is timestamp &&
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
+    }
+
+    function isValidProjectStakeholder(data) {
+      return hasOnlyAllowedFields(['projectId', 'name', 'role', 'userId', 'photoURL', 'createdAt']) &&
+             data.projectId is string &&
+             data.name is string &&
+             (!( 'role' in data ) || data.role is string) &&
+             (!( 'userId' in data ) || data.userId is string) &&
+             (!( 'photoURL' in data ) || data.photoURL is string) &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidTransaction(data) {
+      return hasOnlyAllowedFields(['projectId', 'title', 'amount', 'date', 'category', 'type', 'budgetId', 'receiptUrl', 'createdAt']) &&
+             data.projectId is string &&
+             data.title is string &&
+             data.amount is number &&
+             data.date is timestamp &&
+             data.category is string &&
+             data.type in ['income', 'expense'] &&
+             (!( 'budgetId' in data ) || data.budgetId is string) &&
+             (!( 'receiptUrl' in data ) || data.receiptUrl is string) &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidBudget(data) {
+      return hasOnlyAllowedFields(['projectId', 'name', 'amount', 'date', 'createdAt']) &&
+             data.projectId is string &&
+             data.name is string &&
+             data.amount is number &&
+             data.date is string &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Domain Validators & Role Checks
+    // ===============================================================
+    function isProjectMember(projectId) {
+      return isAuthenticated() &&
+             projectId is string &&
+             request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members;
+    }
+    function isProjectOwner(projectId) {
+      return isAuthenticated() &&
+             projectId is string &&
+             get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
+    }
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'name', 'email', 'photoURL', 'role']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             (!( 'photoURL' in data ) || data.photoURL == null || (data.photoURL is string && data.photoURL.size() < 1000)) &&
+             data.role in ['admin', 'user'];
+    }
+    function isValidProject(data) {
+      return hasOnlyAllowedFields(['name', 'description', 'photoURL', 'ownerId', 'members', 'createdAt', 'updatedAt', 'shortId', 'ganttStartDate']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             (!( 'description' in data ) || data.description == null || (data.description is string && data.description.size() < 1000)) &&
+             (!( 'photoURL' in data ) || data.photoURL == null || (data.photoURL is string && data.photoURL.size() < 1000)) &&
+             data.ownerId is string && data.ownerId.size() > 0 && data.ownerId.size() < 128 &&
+             data.members is list && data.members.size() <= 100 &&
+             data.createdAt is timestamp &&
+             (!( 'ganttStartDate' in data ) || data.ganttStartDate is timestamp) &&
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp) &&
+             data.shortId is string && data.shortId.size() == 8; 
+    }
+    function isValidBoard(data) {
+      return hasOnlyAllowedFields(['projectId', 'name', 'order', 'color', 'ownerId', 'createdAt', 'updatedAt']) &&
+             data.projectId is string && data.projectId.size() > 0 && data.projectId.size() < 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 50 &&
+             data.order is number &&
+             (!( 'color' in data ) || data.color == null || (data.color is string && data.color.size() < 20)) &&
+             data.ownerId is string && data.ownerId.size() > 0 && data.ownerId.size() < 128 &&
+             data.createdAt is timestamp &&
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
+    }
+    function isValidTask(data) {
+      return hasOnlyAllowedFields(['projectId', 'boardId', 'title', 'description', 'assignedTo', 'order', 'color', 'createdAt', 'updatedAt', 'ownerId', 'dueDate', 'startDate', 'tags']) &&
+             data.projectId is string && data.projectId.size() > 0 && data.projectId.size() < 128 &&
+             data.boardId is string && data.boardId.size() > 0 && data.boardId.size() < 128 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             (!( 'description' in data ) || data.description == null || (data.description is string && data.description.size() < 5000)) &&
+             (!( 'assignedTo' in data ) || data.assignedTo == null || (data.assignedTo is string || data.assignedTo is list)) &&
+             data.order is number &&
+             (!( 'color' in data ) || data.color == null || (data.color is string && data.color.size() < 20)) &&
+             data.createdAt is timestamp &&
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp) &&
+             data.ownerId is string && data.ownerId.size() > 0 && data.ownerId.size() < 128 &&
+             (!( 'dueDate' in data ) || data.dueDate == null || data.dueDate is timestamp) &&
+             (!( 'startDate' in data ) || data.startDate == null || data.startDate is timestamp) &&
+             (!( 'tags' in data ) || data.tags == null || (data.tags is list && data.tags.size() <= 20));
+    }
+    
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && uidUnchanged() &&
+                    (request.resource.data.role == 'user' || isAdmin());
+      allow update: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && uidNotModified() &&
+                    (request.resource.data.role == resource.data.role || isAdmin());
+    }
+    match /projects/{projectId} {
+      allow read: if isAuthenticated(); 
+      allow create: if isAuthenticated() && isValidProject(request.resource.data) &&
+                    request.resource.data.ownerId == request.auth.uid &&
+                    request.auth.uid in request.resource.data.members;
+      allow update: if isAuthenticated() && (
+        (request.auth.uid in resource.data.members &&
+         isValidProject(request.resource.data) &&
+         areImmutableFieldsUnchanged(['ownerId', 'createdAt', 'shortId']))
+        ||
+        (!(request.auth.uid in resource.data.members) &&
+         isValidProject(request.resource.data) &&
+         areImmutableFieldsUnchanged(['name', 'description', 'photoURL', 'ownerId', 'createdAt', 'shortId']) &&
+         request.auth.uid in request.resource.data.members)
+      );
+      allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+    }
+    match /boards/{boardId} {
+      allow read: if isProjectMember(resource.data.projectId);
+      allow create: if isProjectMember(request.resource.data.projectId) && isValidBoard(request.resource.data) &&
+                    request.resource.data.ownerId == request.auth.uid;
+      allow update: if isProjectMember(resource.data.projectId) && isValidBoard(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['projectId', 'ownerId', 'createdAt']);
+      allow delete: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        isProjectOwner(resource.data.projectId)
+      );
+    }
+    match /tasks/{taskId} {
+      allow read: if isProjectMember(resource.data.projectId);
+      allow create: if isProjectMember(request.resource.data.projectId) && isValidTask(request.resource.data) &&
+                    request.resource.data.ownerId == request.auth.uid;
+      allow update: if isProjectMember(resource.data.projectId) && isValidTask(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['projectId', 'ownerId', 'createdAt']);
+      allow delete: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        isProjectOwner(resource.data.projectId)
+      );
+    }
+    match /quadros/{projectId} {
+      allow read: if isProjectMember(projectId);
+      allow create: if isProjectMember(projectId) && 
+                    request.resource.data.ownerId == request.auth.uid &&
+                    isValidQuadro(request.resource.data);
+      allow update: if isProjectMember(projectId) && 
+                    isValidQuadro(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['projectId', 'ownerId', 'createdAt']);
+      allow delete: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        isProjectOwner(projectId)
+      );
+    }
+    match /inventory/{itemId} {
+      allow read: if isProjectMember(resource.data.projectId);
+      allow create: if isProjectMember(request.resource.data.projectId) && isValidInventoryItem(request.resource.data);
+      allow update: if isProjectMember(resource.data.projectId) && isValidInventoryItem(request.resource.data);
+      allow delete: if isProjectMember(resource.data.projectId);
+    }
+    match /projectTags/{tagId} {
+      allow read: if isProjectMember(resource.data.projectId);
+      allow create: if isProjectMember(request.resource.data.projectId) && isValidProjectTag(request.resource.data);
+      allow update: if isProjectMember(resource.data.projectId) && isValidProjectTag(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['projectId', 'createdAt']);
+      allow delete: if isProjectMember(resource.data.projectId);
+    }
+    match /assetFolders/{folderId} {
+      allow read: if isProjectMember(resource.data.projectId);
+      allow create: if isProjectMember(request.resource.data.projectId) && isValidAssetFolder(request.resource.data);
+      allow update: if isProjectMember(resource.data.projectId) && isValidAssetFolder(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['projectId', 'createdAt', 'ownerId']);
+      allow delete: if isProjectMember(resource.data.projectId);
+    }
+    match /assetLinks/{linkId} {
+      allow read: if isProjectMember(resource.data.projectId);
+      allow create: if isProjectMember(request.resource.data.projectId) && isValidAssetLink(request.resource.data);
+      allow update: if isProjectMember(resource.data.projectId) && isValidAssetLink(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['projectId', 'createdAt', 'ownerId']);
+      allow delete: if isProjectMember(resource.data.projectId);
+    }
+
+    match /raciMatrices/{matrixId} {
+      allow read: if isProjectMember(resource.data.projectId) || isAdmin();
+      allow create: if (isProjectMember(request.resource.data.projectId) || isAdmin()) && isValidRACIMatrix(request.resource.data);
+      allow update: if (isProjectMember(resource.data.projectId) || isAdmin()) && isValidRACIMatrix(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['projectId', 'createdAt', 'ownerId']);
+      allow delete: if isProjectMember(resource.data.projectId) || isAdmin();
+    }
+    match /raciTasks/{taskId} {
+      allow read: if isProjectMember(resource.data.projectId) || isAdmin();
+      allow create: if (isProjectMember(request.resource.data.projectId) || isAdmin()) && isValidRACITask(request.resource.data);
+      allow update: if (isProjectMember(resource.data.projectId) || isAdmin()) && isValidRACITask(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['matrixId', 'projectId', 'createdAt']);
+      allow delete: if isProjectMember(resource.data.projectId) || isAdmin();
+    }
+    match /raciStakeholders/{stakeholderId} {
+      allow read: if isProjectMember(resource.data.projectId) || isAdmin();
+      allow create: if (isProjectMember(request.resource.data.projectId) || isAdmin()) && isValidRACIStakeholder(request.resource.data);
+      allow update: if (isProjectMember(resource.data.projectId) || isAdmin()) && isValidRACIStakeholder(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['matrixId', 'projectId', 'createdAt']);
+      allow delete: if isProjectMember(resource.data.projectId) || isAdmin();
+    }
+    match /raciAssignments/{assignmentId} {
+      allow read: if isProjectMember(resource.data.projectId) || isAdmin();
+      allow create, update: if (isProjectMember(request.resource.data.projectId) || isAdmin()) && isValidRACIAssignment(request.resource.data);
+      allow delete: if isProjectMember(resource.data.projectId) || isAdmin();
+    }
+
+    // GANTT RULES
+    match /ganttTasks/{taskId} {
+      allow read: if isProjectMember(resource.data.projectId) || isAdmin();
+      allow create: if (isProjectMember(request.resource.data.projectId) || isAdmin()) && isValidGanttTask(request.resource.data);
+      allow update: if (isProjectMember(resource.data.projectId) || isAdmin()) && isValidGanttTask(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['projectId', 'createdAt']);
+      allow delete: if isProjectMember(resource.data.projectId) || isAdmin();
+    }
+
+    match /projectStakeholders/{stakeholderId} {
+      allow read: if isProjectMember(resource.data.projectId) || isAdmin();
+      allow create: if (isProjectMember(request.resource.data.projectId) || isAdmin()) && isValidProjectStakeholder(request.resource.data);
+      allow update: if (isProjectMember(resource.data.projectId) || isAdmin()) && isValidProjectStakeholder(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['projectId', 'createdAt']);
+      allow delete: if isProjectMember(resource.data.projectId) || isAdmin();
+    }
+
+    // FINANCE RULES
+    match /transactions/{transactionId} {
+      allow read: if isProjectMember(resource.data.projectId) || isAdmin();
+      allow create: if (isProjectMember(request.resource.data.projectId) || isAdmin()) && isValidTransaction(request.resource.data);
+      allow update: if (isProjectMember(resource.data.projectId) || isAdmin()) && isValidTransaction(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['projectId', 'createdAt']);
+      allow delete: if isProjectMember(resource.data.projectId) || isAdmin();
+    }
+
+    match /budgets/{budgetId} {
+      allow read: if isProjectMember(resource.data.projectId) || isAdmin();
+      allow create: if (isProjectMember(request.resource.data.projectId) || isAdmin()) && isValidBudget(request.resource.data);
+      allow update: if (isProjectMember(resource.data.projectId) || isAdmin()) && isValidBudget(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['projectId', 'createdAt']);
+      allow delete: if isProjectMember(resource.data.projectId) || isAdmin();
+    }
+  }
+}

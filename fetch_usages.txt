@@ -1,0 +1,29 @@
+p)return;a.ep=!0;const o=n(a);fetch(a.href,o)}})();function f1(t)
+ 0):p=null,r.d.C(h,p))},pn.prefetchDNS=function(h){typeof h=="str
+p.integrity:void 0,T=typeof p.fetchPriority=="string"?p.fetchPrio
+ 0,{crossOrigin:v,integrity:b,fetchPriority:T}):g==="script"&&r.d
+(h,{crossOrigin:v,integrity:b,fetchPriority:T,nonce:typeof p.nonc
+.type=="string"?p.type:void 0,fetchPriority:typeof p.fetchPriorit
+y=="string"?p.fetchPriority:void 0,referrerPolicy
+tion _O(i){zi.D(i),YT("dns-prefetch",i,null)}function EO(i,s){zi.
+\`encType\` for \`<Form>\`/\`<fetcher.Form>\` and will default to
+of window>"u"?"server://singlefetch/":window.location.origin):t;r
+==="stylesheet"?{...a,rel:"prefetch",as:"style"}:{...a,rel:"prefe
+Element("link",{key:R,rel:"prefetch",as:"fetch",href:R,...n})),T.
+lick:e,discover:n="render",prefetch:r="none",relative:a,reloadDoc
+wardRef(({discover:t="render",fetcherKey:e,navigate:n,reloadDocum
+,C=()=>x(ne||Q.currentTarget,{fetcherKey:e,method:N,navigate:n,re
+}=D.useContext(Wn),n=zM(),r=t.fetch,a=t.navigate;return D.useCall
+);if(u.navigate===!1){let b=u.fetcherKey||SP();await r(b,n,u.acti
+c function L1(t){return(await fetch(t,{credentials:"include"})).o
+static initialize(e,n,r){this.fetchImpl=e,n&&(this.headersImpl=n)
+&(this.responseImpl=r)}static fetch(){if(this.fetchImpl)return th
+is.fetchImpl;if(typeof self<"u"&&"fetc
+h"in self)return self.fetch;if(typeof globalThis<"u"&&glo
+balThis.fetch)return globalThis.fetch;if(ty
+peof fetch<"u")return fetch;Hi("Could not find fetch impl
+&(p.credentials="include"),$1.fetch()(await Y1(t,t.config.apiHost
+&(h.credentials="include"),$1.fetch()(u,h)});return{accessToken:n
+0:n.token;iA!==a&&(iA=a,await fetch(t,{method:a?"POST":"DELETE",h
+gServer: timeout",!1,_)},1e4);fetch(d,{signal:I.signal}).then(J=>
+al};d&&(_.body=d),(this.H||u).fetch(new Request(this.D,_)).then(t

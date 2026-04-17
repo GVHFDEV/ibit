@@ -1,0 +1,632 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import Sidebar from './Sidebar';
+import { db } from '../firebase';
+import { 
+  collection, 
+  query, 
+  where, 
+  onSnapshot, 
+  doc, 
+  documentId, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  serverTimestamp,
+  orderBy
+} from 'firebase/firestore';
+import { AssetFolder, AssetLink, Project, UserProfile } from '../types';
+import { 
+  Plus, 
+  Search, 
+  Folder, 
+  ExternalLink, 
+  Trash2, 
+  Edit2, 
+  ChevronRight,
+  MoreVertical,
+  X,
+  Link as LinkIcon,
+  Loader2,
+  FileText,
+  LayoutGrid,
+  List,
+  ArrowLeft
+} from 'lucide-react';
+import clsx from 'clsx';
+import { useAuth } from '../contexts/AuthContext';
+import ProjectSettingsModal from './ProjectSettingsModal';
+import { handleFirestoreError, OperationType } from '../utils/errorHandlers';
+import { motion, AnimatePresence } from 'motion/react';
+
+export default function Assets() {
+  const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  
+  const [project, setProject] = useState<Project | null>(null);
+  const [projectMembers, setProjectMembers] = useState<UserProfile[]>([]);
+  const [folders, setFolders] = useState<AssetFolder[]>([]);
+  const [links, setLinks] = useState<AssetLink[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [editingFolder, setEditingFolder] = useState<AssetFolder | null>(null);
+  const [editingLink, setEditingLink] = useState<AssetLink | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'folder' | 'link'; name: string } | null>(null);
+
+  // 1. Fetch Project Data
+  useEffect(() => {
+    if (!projectId || !user) return;
+    const projectRef = doc(db, 'projects', projectId);
+    return onSnapshot(projectRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setProject({ id: docSnap.id, ...docSnap.data() } as Project);
+      }
+    });
+  }, [projectId, user]);
+
+  // 2. Fetch Members
+  useEffect(() => {
+    if (!project?.members || project.members.length === 0) return;
+    const qMembers = query(
+      collection(db, 'users'),
+      where(documentId(), 'in', project.members.slice(0, 30))
+    );
+    return onSnapshot(qMembers, (snapshot) => {
+      const membersData: UserProfile[] = [];
+      snapshot.forEach((doc) => {
+        membersData.push({ uid: doc.id, ...doc.data() } as UserProfile);
+      });
+      setProjectMembers(membersData);
+    });
+  }, [project?.members?.join(',')]);
+
+  // 3. Fetch Folders & Links
+  useEffect(() => {
+    if (!projectId) return;
+
+    const qFolders = query(
+      collection(db, 'assetFolders'), 
+      where('projectId', '==', projectId)
+    );
+    const unsubFolders = onSnapshot(qFolders, (snapshot) => {
+      const folderData: AssetFolder[] = [];
+      snapshot.forEach((doc) => {
+        folderData.push({ id: doc.id, ...doc.data() } as AssetFolder);
+      });
+      // Sort in memory to avoid index requirements
+      setFolders(folderData.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis() || 0;
+        const timeB = b.createdAt?.toMillis() || 0;
+        return timeA - timeB;
+      }));
+    }, (error) => {
+      console.error("Error fetching folders:", error);
+      handleFirestoreError(error, OperationType.LIST, 'assetFolders');
+    });
+
+    const qLinks = query(
+      collection(db, 'assetLinks'), 
+      where('projectId', '==', projectId)
+    );
+    const unsubLinks = onSnapshot(qLinks, (snapshot) => {
+      const linkData: AssetLink[] = [];
+      snapshot.forEach((doc) => {
+        linkData.push({ id: doc.id, ...doc.data() } as AssetLink);
+      });
+      // Sort in memory to avoid index requirements
+      setLinks(linkData.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis() || 0;
+        const timeB = b.createdAt?.toMillis() || 0;
+        return timeB - timeA; // desc
+      }));
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching links:", error);
+      handleFirestoreError(error, OperationType.LIST, 'assetLinks');
+      setLoading(false);
+    });
+
+    return () => {
+      unsubFolders();
+      unsubLinks();
+    };
+  }, [projectId]);
+
+  const currentFolder = currentFolderId ? folders.find(f => f.id === currentFolderId) : null;
+  
+  const filteredFolders = folders.filter(f => {
+    const parentMatch = (f.parentId || null) === (currentFolderId || null);
+    const searchMatch = f.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return parentMatch && searchMatch;
+  });
+
+  const filteredLinks = links.filter(l => {
+    const folderMatch = (l.folderId || null) === (currentFolderId || null);
+    const searchMatch = l.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                        l.url.toLowerCase().includes(searchQuery.toLowerCase());
+    return folderMatch && searchMatch;
+  });
+
+  const handleDelete = async () => {
+    if (!itemToDelete) return;
+    try {
+      if (itemToDelete.type === 'folder') {
+        // Recursive deletion for folders
+        const deleteFolderRecursive = async (folderId: string) => {
+          // 1. Find and delete links in this folder
+          const linksInFolder = links.filter(l => l.folderId === folderId);
+          for (const link of linksInFolder) {
+            await deleteDoc(doc(db, 'assetLinks', link.id));
+          }
+          
+          // 2. Find and delete subfolders (and their contents) recursive
+          const subfolders = folders.filter(f => f.parentId === folderId);
+          for (const sub of subfolders) {
+            await deleteFolderRecursive(sub.id);
+          }
+          
+          // 3. Delete the folder itself
+          await deleteDoc(doc(db, 'assetFolders', folderId));
+        };
+        
+        await deleteFolderRecursive(itemToDelete.id);
+        if (currentFolderId === itemToDelete.id) {
+          setCurrentFolderId(null);
+        }
+      } else {
+        await deleteDoc(doc(db, 'assetLinks', itemToDelete.id));
+      }
+      
+      setItemToDelete(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'assets');
+    }
+  };
+
+  const getBreadcrumbs = () => {
+    const crumbs = [{ id: null, name: 'INÍCIO' }];
+    if (currentFolderId) {
+      const buildCrumbs = (folderId: string): { id: string | null, name: string }[] => {
+        const folder = folders.find(f => f.id === folderId);
+        if (!folder) return [];
+        const parentCrumbs = folder.parentId ? buildCrumbs(folder.parentId) : [];
+        return [...parentCrumbs, { id: folder.id, name: folder.name.toUpperCase() }];
+      };
+      crumbs.push(...buildCrumbs(currentFolderId));
+    }
+    return crumbs;
+  };
+
+  if (loading || !project) {
+    return (
+      <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-[#ff7f00] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen bg-[#f8f9fa] overflow-hidden">
+      <Sidebar 
+        projectId={projectId} 
+        projectName={project?.name} 
+        onOpenSettings={user?.uid === project?.ownerId ? () => setIsSettingsOpen(true) : undefined} 
+      />
+      
+      <main className="flex-1 flex flex-col min-w-0">
+        <header className="border-b border-gray-200 bg-white p-4 flex items-center justify-between shrink-0 z-20">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden border border-gray-100 shrink-0">
+              {project?.photoURL ? (
+                <img src={project.photoURL} alt={project.name} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xl">🏎️</span>
+              )}
+            </div>
+            <div>
+              <h2 className="text-xl font-bold tracking-wider uppercase leading-tight text-gray-900">
+                {project?.name || 'Carregando...'} {project?.shortId && `- #${project.shortId}`}
+              </h2>
+            </div>
+
+            <div className="flex items-center ml-4">
+              <div className="flex -space-x-2 mr-3">
+                {projectMembers.map((member) => (
+                  <div key={member.uid} className="relative inline-block" title={member?.name}>
+                    {member?.photoURL ? (
+                      <img src={member.photoURL} alt={member.name} className="w-8 h-8 rounded-full border-2 border-white object-cover" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full border-2 border-white bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600 uppercase">
+                        {member?.name?.charAt(0) || '?'}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-widest bg-gray-50 px-2 py-1 border border-gray-200 rounded-md">
+                {project?.members.length || 0} {project?.members.length === 1 ? 'MEMBRO' : 'MEMBROS'}
+              </span>
+            </div>
+          </div>
+        </header>
+
+        <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between shrink-0 shadow-sm z-10">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <Folder className="w-5 h-5 text-[#ff7f00]" />
+              <h2 className="text-lg font-bold text-gray-900 uppercase tracking-widest">
+                ORGANIZADOR DE ATIVOS
+              </h2>
+            </div>
+            
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input 
+                type="text"
+                placeholder="Procurar pasta ou link..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#ff7f00] text-sm font-medium rounded-lg transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <button 
+              onClick={() => { setEditingFolder(null); setIsFolderModalOpen(true); }}
+              className="bg-white text-gray-700 border border-gray-300 px-5 py-2 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg hover:bg-gray-50 active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              NOVA PASTA
+            </button>
+            <button 
+              onClick={() => { setEditingLink(null); setIsLinkModalOpen(true); }}
+              className="bg-[#ff7f00] hover:bg-orange-600 text-white px-5 py-2 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg active:scale-95 shadow-md shadow-orange-100"
+            >
+              <LinkIcon className="w-4 h-4" />
+              ADICIONAR LINK
+            </button>
+          </div>
+        </div>
+
+        {/* Breadcrumbs */}
+        <div className="px-6 pt-6 flex items-center gap-2 text-[10px] font-bold tracking-[0.2em] text-gray-400 uppercase">
+          {getBreadcrumbs().map((crumb, idx) => (
+            <React.Fragment key={crumb.id || 'root'}>
+              {idx > 0 && <ChevronRight className="w-3 h-3 text-gray-300" />}
+              <button 
+                onClick={() => setCurrentFolderId(crumb.id as string | null)}
+                className={clsx(
+                  "hover:text-[#ff7f00] transition-colors",
+                  idx === getBreadcrumbs().length - 1 ? "text-gray-900" : ""
+                )}
+              >
+                {crumb.name}
+              </button>
+            </React.Fragment>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-auto p-6 scrollbar-hide">
+          {loading ? (
+            <div className="h-full flex flex-col items-center justify-center opacity-50">
+              <Loader2 className="w-10 h-10 text-[#ff7f00] animate-spin mb-4" />
+              <p className="font-bold uppercase tracking-widest text-xs">Carregando seus ativos...</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+              {/* Back to Home folder if nested */}
+              {currentFolderId && (
+                <div 
+                  onClick={() => {
+                    const current = folders.find(f => f.id === currentFolderId);
+                    setCurrentFolderId(current?.parentId || null);
+                  }}
+                  className="group bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#ff7f00] hover:shadow-xl transition-all relative"
+                >
+                  <ArrowLeft className="w-12 h-12 text-gray-200 group-hover:text-[#ff7f00] transition-colors" />
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-widest text-center transition-colors group-hover:text-gray-900 line-clamp-2">VOLTAR</span>
+                </div>
+              )}
+
+              {/* Folders List */}
+              {filteredFolders.map(folder => (
+                <div 
+                  key={folder.id}
+                  onClick={() => setCurrentFolderId(folder.id)}
+                  className="group bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#ff7f00] hover:shadow-xl transition-all relative"
+                >
+                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingFolder(folder);
+                        setIsFolderModalOpen(true);
+                      }}
+                      className="p-1.5 hover:bg-orange-50 text-gray-400 hover:text-[#ff7f00] rounded-lg"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setItemToDelete({ id: folder.id, type: 'folder', name: folder.name });
+                      }}
+                      className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <Folder className="w-16 h-16 text-[#ff7f00] fill-[#ff7f00]/5 group-hover:scale-110 transition-transform" />
+                  <span className="text-sm font-bold text-gray-900 uppercase tracking-wider text-center line-clamp-2">{folder.name}</span>
+                </div>
+              ))}
+
+              {/* Links List */}
+              {filteredLinks.map(link => (
+                <div 
+                  key={link.id}
+                  onClick={() => window.open(link.url, '_blank')}
+                  className="group bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#ff7f00] hover:shadow-xl transition-all relative"
+                >
+                   <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingLink(link);
+                        setIsLinkModalOpen(true);
+                      }}
+                      className="p-1.5 hover:bg-orange-50 text-gray-400 hover:text-[#ff7f00] rounded-lg"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setItemToDelete({ id: link.id, type: 'link', name: link.name });
+                      }}
+                      className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  
+                  <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <ExternalLink className="w-8 h-8 text-blue-500" />
+                  </div>
+                  <div className="flex flex-col items-center gap-1 overflow-hidden w-full">
+                    <span className="text-sm font-bold text-gray-900 uppercase tracking-wider text-center line-clamp-2">{link.name}</span>
+                    <span className="text-[10px] text-gray-400 truncate w-full text-center">{new URL(link.url).hostname}</span>
+                  </div>
+                </div>
+              ))}
+
+              {filteredFolders.length === 0 && filteredLinks.length === 0 && (
+                <div className="col-span-full h-64 flex flex-col items-center justify-center text-gray-400 opacity-50">
+                  <Folder className="w-12 h-12 mb-4 border-2 border-dashed border-gray-200 p-2 rounded-xl" />
+                  <p className="font-bold uppercase tracking-widest text-[10px]">Nenhum ativo encontrado nesta view</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </main>
+
+      <AnimatePresence>
+        {isFolderModalOpen && (
+          <FolderModal 
+            projectId={projectId!}
+            parentId={currentFolderId}
+            folder={editingFolder}
+            onClose={() => setIsFolderModalOpen(false)}
+          />
+        )}
+        {isLinkModalOpen && (
+          <LinkModal 
+            projectId={projectId!}
+            folderId={currentFolderId}
+            link={editingLink}
+            onClose={() => setIsLinkModalOpen(false)}
+          />
+        )}
+        {itemToDelete && (
+          <DeleteConfirmModal 
+            title={`EXCLUIR ${itemToDelete.type.toUpperCase()}`}
+            message={`Tem certeza que deseja excluir "${itemToDelete.name}"? ${itemToDelete.type === 'folder' ? 'Isso também removerá todos os links dentro desta pasta.' : ''}`}
+            onConfirm={handleDelete}
+            onCancel={() => setItemToDelete(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {isSettingsOpen && project && (
+        <ProjectSettingsModal 
+          onClose={() => setIsSettingsOpen(false)} 
+          project={project} 
+        />
+      )}
+    </div>
+  );
+}
+
+// --- MODALS ---
+
+interface FolderModalProps {
+  projectId: string;
+  parentId: string | null;
+  folder: AssetFolder | null;
+  onClose: () => void;
+}
+
+function FolderModal({ projectId, parentId, folder, onClose }: FolderModalProps) {
+  const { user } = useAuth();
+  const [name, setName] = useState(folder?.name || '');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !user) return;
+    setIsSaving(true);
+    try {
+      const data = {
+        projectId,
+        parentId: folder ? folder.parentId : (parentId || null),
+        name: name.trim(),
+        updatedAt: serverTimestamp(),
+        order: 0,
+        ownerId: user.uid
+      };
+      if (folder) {
+        await updateDoc(doc(db, 'assetFolders', folder.id), data);
+      } else {
+        await addDoc(collection(db, 'assetFolders'), { ...data, createdAt: serverTimestamp() });
+      }
+      onClose();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'assetFolders');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white border border-gray-200 w-full max-w-md overflow-hidden rounded-2xl">
+        <div className="flex justify-between items-center p-6 border-b border-gray-100">
+          <h3 className="text-xl font-bold text-gray-900 uppercase tracking-widest">{folder ? 'EDITAR PASTA' : 'NOVA PASTA'}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-900 transition-colors"><X className="w-6 h-6" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">NOME DA PASTA</label>
+            <input 
+              type="text" autoFocus required value={name} onChange={(e) => setName(e.target.value)} 
+              className="w-full bg-white border border-gray-300 px-4 py-3 text-gray-900 focus:outline-none focus:border-[#ff7f00] font-bold rounded-lg" 
+              placeholder="Ex: Financeiro, Engenharia..." 
+            />
+          </div>
+          <div className="flex gap-3">
+            <button onClick={onClose} type="button" className="flex-1 px-6 py-3 bg-white border border-gray-300 text-gray-700 font-bold uppercase tracking-widest text-xs rounded-lg hover:bg-gray-50">CANCELAR</button>
+            <button type="submit" disabled={isSaving || !name.trim()} className="flex-1 px-6 py-3 bg-[#ff7f00] text-white font-bold uppercase tracking-widest text-xs rounded-lg hover:bg-orange-600 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
+              {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isSaving ? 'SALVANDO...' : 'SALVAR'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
+interface LinkModalProps {
+  projectId: string;
+  folderId: string | null;
+  link: AssetLink | null;
+  onClose: () => void;
+}
+
+function LinkModal({ projectId, folderId, link, onClose }: LinkModalProps) {
+  const { user } = useAuth();
+  const [name, setName] = useState(link?.name || '');
+  const [url, setUrl] = useState(link?.url || '');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !url.trim() || !user) return;
+    
+    let formattedUrl = url.trim();
+    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+      formattedUrl = 'https://' + formattedUrl;
+    }
+
+    setIsSaving(true);
+    try {
+      const data = {
+        projectId,
+        folderId: folderId || null,
+        name: name.trim(),
+        url: formattedUrl,
+        updatedAt: serverTimestamp(),
+        ownerId: user.uid
+      };
+      if (link) {
+        await updateDoc(doc(db, 'assetLinks', link.id), data);
+      } else {
+        await addDoc(collection(db, 'assetLinks'), { ...data, createdAt: serverTimestamp() });
+      }
+      onClose();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'assetLinks');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white border border-gray-200 w-full max-w-md overflow-hidden rounded-2xl">
+        <div className="flex justify-between items-center p-6 border-b border-gray-100">
+          <h3 className="text-xl font-bold text-gray-900 uppercase tracking-widest">{link ? 'EDITAR LINK' : 'NOVO LINK'}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-900 transition-colors"><X className="w-6 h-6" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">NOME DO ATIVO</label>
+              <input 
+                type="text" autoFocus required value={name} onChange={(e) => setName(e.target.value)} 
+                className="w-full bg-white border border-gray-300 px-4 py-3 text-gray-900 focus:outline-none focus:border-[#ff7f00] font-bold rounded-lg" 
+                placeholder="Ex: Planilha de Custos, Manual PDF..." 
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">URL / LINK EXTERNO</label>
+              <div className="relative">
+                <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input 
+                  type="text" required value={url} onChange={(e) => setUrl(e.target.value)} 
+                  className="w-full bg-white border border-gray-300 pl-10 pr-4 py-3 text-gray-900 focus:outline-none focus:border-[#ff7f00] font-medium rounded-lg" 
+                  placeholder="google.com/docs..." 
+                />
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={onClose} type="button" className="flex-1 px-6 py-3 bg-white border border-gray-300 text-gray-700 font-bold uppercase tracking-widest text-xs rounded-lg hover:bg-gray-50">CANCELAR</button>
+            <button type="submit" disabled={isSaving || !name.trim() || !url.trim()} className="flex-1 px-6 py-3 bg-[#ff7f00] text-white font-bold uppercase tracking-widest text-xs rounded-lg hover:bg-orange-600 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
+              {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isSaving ? 'SALVANDO...' : 'SALVAR'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
+function DeleteConfirmModal({ title, message, onConfirm, onCancel }: { title: string, message: string, onConfirm: () => void, onCancel: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white border border-gray-200 w-full max-w-md overflow-hidden rounded-2xl">
+        <div className="flex justify-between items-center p-6 border-b border-red-100 bg-red-50">
+          <h3 className="text-xl font-bold text-red-700 uppercase tracking-widest">{title}</h3>
+          <button onClick={onCancel} className="text-red-400 hover:text-red-600 transition-colors"><X className="w-6 h-6" /></button>
+        </div>
+        <div className="p-6 space-y-6">
+          <p className="text-gray-700 font-medium">{message}</p>
+          <div className="flex gap-3">
+            <button onClick={onCancel} className="flex-1 bg-white border border-gray-300 text-gray-700 px-4 py-3 font-bold uppercase tracking-widest rounded-lg hover:bg-gray-50 text-xs">CANCELAR</button>
+            <button onClick={onConfirm} className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-3 font-bold uppercase tracking-widest rounded-lg shadow-lg shadow-red-100 text-xs">EXCLUIR</button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
