@@ -1,8 +1,8 @@
 {
-    "rewrites": [
-        {
-            "source": "/(.*)",
-            "destination": "/index.html"
-        }
-    ]
+  "crons": [
+    {
+      "path": "/api/notify-due-tasks",
+      "schedule": "0 8 * * *"
+    }
+  ]
 }

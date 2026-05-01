@@ -126,6 +126,18 @@ export interface AssetLink {
   ownerId: string;
 }
 
+export interface AssetDocument {
+  id: string;
+  projectId: string;
+  folderId?: string | null;
+  type: 'note';
+  title: string;
+  content: Record<string, any>; // TipTap JSON content
+  ownerId: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
 export interface RACIMatrix {
   id: string;
   projectId: string;

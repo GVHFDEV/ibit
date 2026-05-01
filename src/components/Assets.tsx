@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import MobileHeader from './MobileHeader';
 import MobileBottomNav from './MobileBottomNav';
 import MobileToolsDrawer from './MobileToolsDrawer';
 import UserProfileModal from './UserProfileModal';
+import DocumentEditor from './DocumentEditor';
 import { db } from '../firebase';
 import { 
   collection, 
@@ -19,7 +20,7 @@ import {
   serverTimestamp,
   orderBy
 } from 'firebase/firestore';
-import { AssetFolder, AssetLink, Project, UserProfile } from '../types';
+import { AssetFolder, AssetLink, AssetDocument, Project, UserProfile } from '../types';
 import { 
   Plus, 
   Search, 
@@ -35,7 +36,8 @@ import {
   FileText,
   LayoutGrid,
   List,
-  ArrowLeft
+  ArrowLeft,
+  FilePlus2
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
@@ -52,6 +54,7 @@ export default function Assets() {
   const [projectMembers, setProjectMembers] = useState<UserProfile[]>([]);
   const [folders, setFolders] = useState<AssetFolder[]>([]);
   const [links, setLinks] = useState<AssetLink[]>([]);
+  const [documents, setDocuments] = useState<AssetDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -63,7 +66,23 @@ export default function Assets() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [editingFolder, setEditingFolder] = useState<AssetFolder | null>(null);
   const [editingLink, setEditingLink] = useState<AssetLink | null>(null);
-  const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'folder' | 'link'; name: string } | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'folder' | 'link' | 'document'; name: string } | null>(null);
+  const [showNewAssetDropdown, setShowNewAssetDropdown] = useState(false);
+  const [openDocumentId, setOpenDocumentId] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowNewAssetDropdown(false);
+      }
+    };
+    if (showNewAssetDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showNewAssetDropdown]);
 
   // 1. Fetch Project Data
   useEffect(() => {
@@ -138,9 +157,29 @@ export default function Assets() {
       setLoading(false);
     });
 
+    // 3b. Fetch Documents
+    const qDocs = query(
+      collection(db, 'assetDocuments'),
+      where('projectId', '==', projectId)
+    );
+    const unsubDocs = onSnapshot(qDocs, (snapshot) => {
+      const docData: AssetDocument[] = [];
+      snapshot.forEach((d) => {
+        docData.push({ id: d.id, ...d.data() } as AssetDocument);
+      });
+      setDocuments(docData.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis() || 0;
+        const timeB = b.createdAt?.toMillis() || 0;
+        return timeB - timeA;
+      }));
+    }, (error) => {
+      console.error("Error fetching documents:", error);
+    });
+
     return () => {
       unsubFolders();
       unsubLinks();
+      unsubDocs();
     };
   }, [projectId]);
 
@@ -159,25 +198,30 @@ export default function Assets() {
     return folderMatch && searchMatch;
   });
 
+  const filteredDocuments = documents.filter(d => {
+    const folderMatch = (d.folderId || null) === (currentFolderId || null);
+    const searchMatch = d.title.toLowerCase().includes(searchQuery.toLowerCase());
+    return folderMatch && searchMatch;
+  });
+
   const handleDelete = async () => {
     if (!itemToDelete) return;
     try {
       if (itemToDelete.type === 'folder') {
         // Recursive deletion for folders
         const deleteFolderRecursive = async (folderId: string) => {
-          // 1. Find and delete links in this folder
           const linksInFolder = links.filter(l => l.folderId === folderId);
           for (const link of linksInFolder) {
             await deleteDoc(doc(db, 'assetLinks', link.id));
           }
-          
-          // 2. Find and delete subfolders (and their contents) recursive
+          const docsInFolder = documents.filter(d => d.folderId === folderId);
+          for (const d of docsInFolder) {
+            await deleteDoc(doc(db, 'assetDocuments', d.id));
+          }
           const subfolders = folders.filter(f => f.parentId === folderId);
           for (const sub of subfolders) {
             await deleteFolderRecursive(sub.id);
           }
-          
-          // 3. Delete the folder itself
           await deleteDoc(doc(db, 'assetFolders', folderId));
         };
         
@@ -185,6 +229,8 @@ export default function Assets() {
         if (currentFolderId === itemToDelete.id) {
           setCurrentFolderId(null);
         }
+      } else if (itemToDelete.type === 'document') {
+        await deleteDoc(doc(db, 'assetDocuments', itemToDelete.id));
       } else {
         await deleteDoc(doc(db, 'assetLinks', itemToDelete.id));
       }
@@ -192,6 +238,28 @@ export default function Assets() {
       setItemToDelete(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'assets');
+    }
+  };
+
+  // --- Create Document ---
+  const handleCreateDocument = async () => {
+    if (!user || !projectId) return;
+    setShowNewAssetDropdown(false);
+    try {
+      const docRef = await addDoc(collection(db, 'assetDocuments'), {
+        projectId,
+        folderId: currentFolderId || null,
+        type: 'note',
+        title: 'Documento sem título',
+        content: {},
+        ownerId: user.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      // Open the editor immediately after creation
+      setOpenDocumentId(docRef.id);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'assetDocuments');
     }
   };
 
@@ -305,13 +373,55 @@ export default function Assets() {
               <Plus className="w-4 h-4" />
               PASTA
             </button>
-            <button 
-              onClick={() => { setEditingLink(null); setIsLinkModalOpen(true); }}
-              className="bg-[#ff7f00] hover:bg-orange-600 text-white px-3 sm:px-5 py-2 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg active:scale-95 shadow-md shadow-orange-100 flex-1 sm:flex-none justify-center"
-            >
-              <LinkIcon className="w-4 h-4" />
-              LINK
-            </button>
+            
+            {/* New Asset Dropdown */}
+            <div className="relative flex-1 sm:flex-none" ref={dropdownRef}>
+              <button 
+                onClick={() => setShowNewAssetDropdown(!showNewAssetDropdown)}
+                className="w-full bg-[#ff7f00] hover:bg-orange-600 text-white px-3 sm:px-5 py-2 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg active:scale-95 shadow-md shadow-orange-100 justify-center"
+              >
+                <Plus className="w-4 h-4" />
+                NOVO ATIVO
+              </button>
+              
+              <AnimatePresence>
+                {showNewAssetDropdown && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-200 rounded-xl overflow-hidden z-50 shadow-lg"
+                  >
+                    <button
+                      onClick={() => { setShowNewAssetDropdown(false); setEditingLink(null); setIsLinkModalOpen(true); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
+                        <LinkIcon className="w-4 h-4 text-blue-500" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-gray-900 uppercase tracking-wider">Adicionar Link</span>
+                        <p className="text-[10px] text-gray-400">Link externo ou URL</p>
+                      </div>
+                    </button>
+                    <div className="h-px bg-gray-100" />
+                    <button
+                      onClick={handleCreateDocument}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center shrink-0">
+                        <FilePlus2 className="w-4 h-4 text-[#ff7f00]" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-gray-900 uppercase tracking-wider">Criar Documento</span>
+                        <p className="text-[10px] text-gray-400">Editor de texto rico</p>
+                      </div>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
 
@@ -427,7 +537,45 @@ export default function Assets() {
                 </div>
               ))}
 
-              {filteredFolders.length === 0 && filteredLinks.length === 0 && (
+              {/* Documents List */}
+              {filteredDocuments.map(assetDoc => (
+                <div 
+                  key={assetDoc.id}
+                  onClick={() => setOpenDocumentId(assetDoc.id)}
+                  className="group bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#ff7f00] hover:shadow-xl transition-all relative"
+                >
+                   <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenDocumentId(assetDoc.id);
+                      }}
+                      className="p-1.5 hover:bg-orange-50 text-gray-400 hover:text-[#ff7f00] rounded-lg"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setItemToDelete({ id: assetDoc.id, type: 'document', name: assetDoc.title });
+                      }}
+                      className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  
+                  <div className="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <FileText className="w-8 h-8 text-[#ff7f00]" />
+                  </div>
+                  <div className="flex flex-col items-center gap-1 overflow-hidden w-full">
+                    <span className="text-sm font-bold text-gray-900 uppercase tracking-wider text-center line-clamp-2">{assetDoc.title}</span>
+                    <span className="text-[10px] text-gray-400">Documento</span>
+                  </div>
+                </div>
+              ))}
+
+              {filteredFolders.length === 0 && filteredLinks.length === 0 && filteredDocuments.length === 0 && (
                 <div className="col-span-full h-64 flex flex-col items-center justify-center text-gray-400 opacity-50">
                   <Folder className="w-12 h-12 mb-4 border-2 border-dashed border-gray-200 p-2 rounded-xl" />
                   <p className="font-bold uppercase tracking-widest text-[10px]">Nenhum ativo encontrado nesta view</p>
@@ -479,6 +627,14 @@ export default function Assets() {
           <UserProfileModal onClose={() => setIsProfileOpen(false)} />
         )}
       </AnimatePresence>
+
+      {/* Document Editor Full-screen Overlay */}
+      {openDocumentId && (
+        <DocumentEditor
+          documentId={openDocumentId}
+          onClose={() => setOpenDocumentId(null)}
+        />
+      )}
     </div>
   );
 }

@@ -86,6 +86,18 @@ service cloud.firestore {
              (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
     }
 
+    function isValidAssetDocument(data) {
+      return hasOnlyAllowedFields(['projectId', 'folderId', 'type', 'title', 'content', 'ownerId', 'createdAt', 'updatedAt']) &&
+             data.projectId is string &&
+             (!( 'folderId' in data ) || data.folderId == null || data.folderId is string) &&
+             data.type == 'note' &&
+             data.title is string &&
+             data.content is map &&
+             data.ownerId is string &&
+             data.createdAt is timestamp &&
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
+    }
+
     function isValidRACIMatrix(data) {
       return hasOnlyAllowedFields(['projectId', 'name', 'ownerId', 'createdAt', 'updatedAt']) &&
              data.projectId is string &&
@@ -326,6 +338,12 @@ service cloud.firestore {
       allow create: if isProjectMember(request.resource.data.projectId) && isValidAssetLink(request.resource.data);
       allow update: if isProjectMember(resource.data.projectId) && isValidAssetLink(request.resource.data) &&
                     areImmutableFieldsUnchanged(['projectId', 'createdAt', 'ownerId']);
+      allow delete: if isProjectMember(resource.data.projectId);
+    }
+    match /assetDocuments/{docId} {
+      allow read: if isProjectMember(resource.data.projectId);
+      allow create: if isProjectMember(request.resource.data.projectId);
+      allow update: if isProjectMember(resource.data.projectId);
       allow delete: if isProjectMember(resource.data.projectId);
     }
 
