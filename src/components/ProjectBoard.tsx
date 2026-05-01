@@ -6,6 +6,10 @@ import { doc, collection, query, where, onSnapshot, addDoc, serverTimestamp, upd
 import { handleFirestoreError, OperationType } from '../utils/errorHandlers';
 import { Project, Board, Task, UserProfile, ProjectTag } from '../types';
 import Sidebar from './Sidebar';
+import MobileHeader from './MobileHeader';
+import MobileBottomNav from './MobileBottomNav';
+import MobileToolsDrawer from './MobileToolsDrawer';
+import UserProfileModal from './UserProfileModal';
 import { Plus, Trash2, Calendar, User as UserIcon, Pencil } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { AnimatePresence, motion } from 'motion/react';
@@ -36,6 +40,10 @@ export default function ProjectBoard() {
   const [editingBoardName, setEditingBoardName] = useState('');
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Mobile states
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   // 1. Fetch Project Data (Scalable)
   useEffect(() => {
@@ -252,8 +260,25 @@ export default function ProjectBoard() {
   return (
     <div className="min-h-screen bg-[#f8f9fa] text-gray-900 flex h-screen">
       <Sidebar projectId={projectId} projectName={project.name} onOpenSettings={isOwner ? () => setIsSettingsOpen(true) : undefined} />
+
+      <MobileToolsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        projectId={projectId!}
+        projectName={project.name}
+        onOpenSettings={isOwner ? () => setIsSettingsOpen(true) : undefined}
+      />
+
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="border-b border-gray-200 bg-white p-4 flex items-center justify-between shrink-0">
+        {/* Mobile Header */}
+        <MobileHeader
+          projectName={project.name}
+          projectPhotoURL={project.photoURL || undefined}
+          onOpenDrawer={() => setIsDrawerOpen(true)}
+        />
+
+        {/* Desktop header — hidden on mobile */}
+        <header className="hidden lg:flex border-b border-gray-200 bg-white p-4 items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden border border-gray-100 shrink-0">
               {project.photoURL ? <img src={project.photoURL} alt={project.name} className="w-full h-full object-cover" /> : <span className="text-xl">🏎️</span>}
@@ -272,17 +297,17 @@ export default function ProjectBoard() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-x-auto overflow-y-hidden p-6">
+        <main className="flex-1 overflow-x-auto overflow-y-hidden p-3 sm:p-6 mobile-pb-nav">
           <DragDropContext onDragEnd={onDragEnd}>
             <Droppable droppableId="all-boards" direction="horizontal" type="board">
               {(provided) => (
-                <div className="flex gap-6 h-full items-start" {...provided.droppableProps} ref={provided.innerRef}>
+                <div className="flex gap-3 sm:gap-6 h-full items-start scroll-snap-x lg:!scroll-snap-type-none" {...provided.droppableProps} ref={provided.innerRef}>
                   {boards.map((board, index) => {
                     const boardTasks = tasks.filter(t => t.boardId === board.id).sort((a, b) => a.order - b.order);
                     return (
                       <Draggable key={board.id} draggableId={board.id} index={index}>
                         {(provided) => (
-                          <div ref={provided.innerRef} {...provided.draggableProps} className="bg-gray-50 border border-gray-200 w-80 shrink-0 max-h-full flex flex-col rounded-xl">
+                          <div ref={provided.innerRef} {...provided.draggableProps} className="bg-gray-50 border border-gray-200 w-[85vw] sm:w-80 shrink-0 max-h-full flex flex-col rounded-xl scroll-snap-center">
                             <div {...provided.dragHandleProps} className="p-4 border-b border-gray-200 flex justify-between items-center group bg-white rounded-t-xl">
                               {editingBoardId === board.id ? (
                                 <input
@@ -383,6 +408,15 @@ export default function ProjectBoard() {
       <AnimatePresence>
         {isSettingsOpen && project && (
           <ProjectSettingsModal project={project} onClose={() => setIsSettingsOpen(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Mobile bottom nav */}
+      <MobileBottomNav onOpenProfile={() => setIsProfileOpen(true)} />
+
+      <AnimatePresence>
+        {isProfileOpen && (
+          <UserProfileModal onClose={() => setIsProfileOpen(false)} />
         )}
       </AnimatePresence>
     </div>

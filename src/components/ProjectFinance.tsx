@@ -5,6 +5,10 @@ import { db } from '../firebase';
 import { doc, collection, query, where, onSnapshot, documentId, addDoc, serverTimestamp, deleteDoc, updateDoc } from 'firebase/firestore';
 import { Project, UserProfile, Transaction, Budget } from '../types';
 import Sidebar from './Sidebar';
+import MobileHeader from './MobileHeader';
+import MobileBottomNav from './MobileBottomNav';
+import MobileToolsDrawer from './MobileToolsDrawer';
+import UserProfileModal from './UserProfileModal';
 import ProjectSettingsModal from './ProjectSettingsModal';
 import { 
   DollarSign, 
@@ -78,6 +82,8 @@ export default function ProjectFinance() {
   const [projectMembers, setProjectMembers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState<FinanceTab>('Dashboard');
 
@@ -658,7 +664,7 @@ export default function ProjectFinance() {
           ) : (
             <div id="pdf-cashflow-chart-container" className="w-full flex flex-col" style={{ height: '340px' }}>
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={cashFlowData} margin={{ top: 35, right: 80, left: 35, bottom: 5 }}>
+                <LineChart data={cashFlowData} margin={{ top: 35, right: 40, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                   <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 'bold', fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                   <YAxis hide domain={['dataMin', 'dataMax']} padding={{ top: 20, bottom: 20 }} />
@@ -916,9 +922,23 @@ export default function ProjectFinance() {
           projectName={project?.name} 
           onOpenSettings={user?.uid === project?.ownerId ? () => setIsSettingsOpen(true) : undefined} 
         />
-        
+
+        <MobileToolsDrawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          projectId={projectId!}
+          projectName={project?.name}
+          onOpenSettings={user?.uid === project?.ownerId ? () => setIsSettingsOpen(true) : undefined}
+        />
+         
         <main className="flex-1 flex flex-col min-w-0">
-          <header className="border-b border-gray-200 bg-white p-4 flex items-center justify-between shrink-0 z-20">
+          <MobileHeader
+            projectName={project?.name}
+            projectPhotoURL={project?.photoURL || undefined}
+            onOpenDrawer={() => setIsDrawerOpen(true)}
+          />
+
+          <header className="hidden lg:flex border-b border-gray-200 bg-white p-4 items-center justify-between shrink-0 z-20">
           <div className="flex items-center gap-4 min-w-0">
             <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden border border-gray-100 shrink-0">
               {project?.photoURL ? (
@@ -954,10 +974,10 @@ export default function ProjectFinance() {
           </div>
         </header>
 
-        <div className="border-b border-gray-200 bg-white p-4 flex justify-between items-center shrink-0 z-10 transition-all">
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-2 border-r border-gray-200 pr-6">
-              <DollarSign className="w-5 h-5 text-[#ff7f00]" />
+        <div className="border-b border-gray-200 bg-white p-3 sm:p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shrink-0 z-10 transition-all">
+          <div className="flex items-center gap-0 sm:gap-8 w-full sm:w-auto">
+            <div className="flex items-center gap-2 shrink-0">
+              <DollarSign className="w-5 h-5 text-[#ff7f00] hidden sm:block" />
               <h2 className="text-lg font-bold text-gray-900 uppercase tracking-widest hidden sm:block">
                 GESTÃO FINANCEIRA
               </h2>
@@ -984,7 +1004,7 @@ export default function ProjectFinance() {
           {getSubheaderActions()}
         </div>
 
-        <div className="flex-1 p-6 overflow-y-auto bg-[#f8f9fa] scrollbar-hide">
+        <div className="flex-1 p-3 sm:p-6 overflow-y-auto bg-[#f8f9fa] scrollbar-hide mobile-pb-nav">
           <div className="w-full h-full">
             {activeTab === 'Dashboard' && renderDashboard()}
             {activeTab === 'Transações' && renderTransactions()}
@@ -1064,6 +1084,14 @@ export default function ProjectFinance() {
           project={project} 
         />
       )}
+
+      <MobileBottomNav onOpenProfile={() => setIsProfileOpen(true)} />
+
+      <AnimatePresence>
+        {isProfileOpen && (
+          <UserProfileModal onClose={() => setIsProfileOpen(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

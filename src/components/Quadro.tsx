@@ -1,5 +1,9 @@
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import Sidebar from './Sidebar';
+import MobileHeader from './MobileHeader';
+import MobileBottomNav from './MobileBottomNav';
+import MobileToolsDrawer from './MobileToolsDrawer';
+import UserProfileModal from './UserProfileModal';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ReactFlow,
@@ -50,6 +54,7 @@ import { handleFirestoreError, OperationType } from '../utils/errorHandlers';
 import type { Quadro, Project, UserProfile } from '../types';
 import { nodeTypes } from './QuadroCustomNodes';
 import ProjectSettingsModal from './ProjectSettingsModal';
+import { AnimatePresence } from 'motion/react';
 
 const COLORS = [
   { name: 'Branco', value: '#ffffff', text: '#1f2937', border: true },
@@ -73,6 +78,8 @@ function QuadroContent() {
   const [project, setProject] = useState<Project | null>(null);
   const [projectMembers, setProjectMembers] = useState<UserProfile[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [loading, setLoading] = useState(true);
@@ -350,9 +357,22 @@ function QuadroContent() {
         onOpenSettings={isOwner ? () => setIsSettingsOpen(true) : undefined}
       />
 
+      <MobileToolsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        projectId={projectId!}
+        projectName={project?.name}
+        onOpenSettings={isOwner ? () => setIsSettingsOpen(true) : undefined}
+      />
+
       <main className="flex-1 bg-white relative flex flex-col overflow-hidden">
-        {/* Header Superior Padronizado do IBIT */}
-        <header className="border-b border-gray-200 bg-white p-4 flex items-center justify-between shrink-0 z-20">
+        <MobileHeader
+          projectName={project?.name}
+          projectPhotoURL={project?.photoURL || undefined}
+          onOpenDrawer={() => setIsDrawerOpen(true)}
+        />
+
+        <header className="hidden lg:flex border-b border-gray-200 bg-white p-4 items-center justify-between shrink-0 z-20">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden border border-gray-100 shrink-0">
               {project?.photoURL ? (
@@ -390,14 +410,6 @@ function QuadroContent() {
                 {project.members.length} {project.members.length === 1 ? 'Membro' : 'Membros'}
               </span>
             </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            {/* Header members and info remains same */}
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Delete button moved to side panel */}
           </div>
         </header>
 
@@ -497,6 +509,14 @@ function QuadroContent() {
           />
         )}
       </main>
+
+      <MobileBottomNav onOpenProfile={() => setIsProfileOpen(true)} />
+
+      <AnimatePresence>
+        {isProfileOpen && (
+          <UserProfileModal onClose={() => setIsProfileOpen(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

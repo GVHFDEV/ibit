@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import MobileHeader from './MobileHeader';
+import MobileBottomNav from './MobileBottomNav';
+import MobileToolsDrawer from './MobileToolsDrawer';
+import UserProfileModal from './UserProfileModal';
 import { db } from '../firebase';
 import { 
   collection, 
@@ -61,6 +65,8 @@ export default function RACIMatrix() {
   const [isStakeholderModalOpen, setIsStakeholderModalOpen] = useState(false);
   const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState<{ taskId: string, participantId: string } | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   
   const [editingMatrix, setEditingMatrix] = useState<IRACIMatrix | null>(null);
   const [editingTask, setEditingTask] = useState<RACITask | null>(null);
@@ -286,9 +292,23 @@ export default function RACIMatrix() {
         projectName={project?.name} 
         onOpenSettings={user?.uid === project?.ownerId ? () => setIsSettingsOpen(true) : undefined} 
       />
+
+      <MobileToolsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        projectId={projectId!}
+        projectName={project?.name}
+        onOpenSettings={user?.uid === project?.ownerId ? () => setIsSettingsOpen(true) : undefined}
+      />
       
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="border-b border-gray-200 bg-white p-4 flex items-center justify-between shrink-0 z-20">
+        <MobileHeader
+          projectName={project?.name}
+          projectPhotoURL={project?.photoURL || undefined}
+          onOpenDrawer={() => setIsDrawerOpen(true)}
+        />
+
+        <header className="hidden lg:flex border-b border-gray-200 bg-white p-4 items-center justify-between shrink-0 z-20">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden border border-gray-100 shrink-0">
               {project?.photoURL ? (
@@ -324,9 +344,9 @@ export default function RACIMatrix() {
           </div>
         </header>
 
-        <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between shrink-0 shadow-sm z-10">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
+        <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0 shadow-sm z-10">
+          <div className="flex items-center gap-0 sm:gap-6">
+            <div className="hidden sm:flex items-center gap-2">
               <Grid3X3 className="w-5 h-5 text-[#ff7f00]" />
               <h2 className="text-lg font-bold text-gray-900 uppercase tracking-widest">
                 MATRIZ RACI
@@ -334,7 +354,7 @@ export default function RACIMatrix() {
             </div>
             
             {!currentMatrixId && (
-              <div className="relative w-64">
+              <div className="relative flex-1 sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input 
                   type="text"
@@ -347,19 +367,19 @@ export default function RACIMatrix() {
             )}
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3">
             {currentMatrixId ? (
               <>
                 <button 
                   onClick={() => { setEditingTask(null); setIsTaskModalOpen(true); }}
-                  className="bg-white text-gray-700 border border-gray-300 px-3 py-1.5 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-[10px] rounded-lg hover:bg-gray-50 active:scale-95"
+                  className="bg-white text-gray-700 border border-gray-300 px-3 py-2 flex items-center justify-center gap-2 transition-all font-bold uppercase tracking-widest text-[9px] sm:text-[10px] rounded-lg hover:bg-gray-50 active:scale-95 flex-1 sm:flex-none"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   TAREFA
                 </button>
                 <button 
                   onClick={() => { setEditingStakeholder(null); setIsStakeholderModalOpen(true); }}
-                  className="bg-[#ff7f00] hover:bg-orange-600 text-white px-3 py-1.5 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-[10px] rounded-lg active:scale-95 shadow-md shadow-orange-100"
+                  className="bg-[#ff7f00] hover:bg-orange-600 text-white px-3 py-2 flex items-center justify-center gap-2 transition-all font-bold uppercase tracking-widest text-[9px] sm:text-[10px] rounded-lg active:scale-95 shadow-md shadow-orange-100 flex-1 sm:flex-none"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
                   STAKEHOLDER
@@ -368,7 +388,7 @@ export default function RACIMatrix() {
             ) : (
               <button 
                 onClick={() => { setEditingMatrix(null); setIsMatrixModalOpen(true); }}
-                className="bg-[#ff7f00] hover:bg-orange-600 text-white px-4 py-1.5 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-[10px] rounded-lg active:scale-95 shadow-md shadow-orange-100"
+                className="bg-[#ff7f00] hover:bg-orange-600 text-white px-4 py-2 flex items-center justify-center gap-2 transition-all font-bold uppercase tracking-widest text-[9px] sm:text-[10px] rounded-lg active:scale-95 shadow-md shadow-orange-100 flex-1 sm:flex-none"
               >
                 <Plus className="w-4 h-4" />
                 CRIAR MATRIZ
@@ -395,7 +415,7 @@ export default function RACIMatrix() {
           ))}
         </div>
 
-        <div className="flex-1 overflow-auto p-6 scrollbar-hide">
+        <div className="flex-1 overflow-auto p-3 sm:p-6 scrollbar-hide mobile-pb-nav">
           {loading ? (
             <div className="h-full flex flex-col items-center justify-center opacity-50">
               <Loader2 className="w-10 h-10 text-[#ff7f00] animate-spin mb-4" />
@@ -554,7 +574,7 @@ export default function RACIMatrix() {
         
         {/* Legend */}
         {currentMatrixId && (
-          <div className="border-t border-gray-100 bg-white p-4 shrink-0 flex items-center justify-center gap-8">
+          <div className="border-t border-gray-100 bg-white p-3 sm:p-4 shrink-0 flex items-center justify-center gap-4 sm:gap-8 flex-wrap">
             <div className="flex items-center gap-2">
               <span className="w-6 h-6 rounded bg-white text-gray-900 flex items-center justify-center font-black text-[10px] border border-gray-200">R</span>
               <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Responsável</span>
@@ -630,6 +650,14 @@ export default function RACIMatrix() {
           project={project} 
         />
       )}
+
+      <MobileBottomNav onOpenProfile={() => setIsProfileOpen(true)} />
+
+      <AnimatePresence>
+        {isProfileOpen && (
+          <UserProfileModal onClose={() => setIsProfileOpen(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

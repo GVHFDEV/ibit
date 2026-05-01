@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import MobileHeader from './MobileHeader';
+import MobileBottomNav from './MobileBottomNav';
+import MobileToolsDrawer from './MobileToolsDrawer';
+import UserProfileModal from './UserProfileModal';
 import { db } from '../firebase';
 import { collection, query, where, onSnapshot, doc, documentId } from 'firebase/firestore';
 import { Task, Project, UserProfile } from '../types';
@@ -10,6 +14,7 @@ import {
   User as UserIcon
 } from 'lucide-react';
 import clsx from 'clsx';
+import { AnimatePresence } from 'motion/react';
 import ProjectSettingsModal from './ProjectSettingsModal';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -23,6 +28,8 @@ export default function CalendarTool() {
   const [projectMembers, setProjectMembers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   // 1. Fetch Project Data (Scalable)
   useEffect(() => {
@@ -134,9 +141,25 @@ export default function CalendarTool() {
         projectName={project?.name} 
         onOpenSettings={user?.uid === project?.ownerId ? () => setIsSettingsOpen(true) : undefined} 
       />
+
+      <MobileToolsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        projectId={projectId!}
+        projectName={project?.name}
+        onOpenSettings={user?.uid === project?.ownerId ? () => setIsSettingsOpen(true) : undefined}
+      />
       
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="border-b border-gray-200 bg-white p-4 flex items-center justify-between shrink-0 z-20">
+        {/* Mobile Header */}
+        <MobileHeader
+          projectName={project?.name}
+          projectPhotoURL={project?.photoURL || undefined}
+          onOpenDrawer={() => setIsDrawerOpen(true)}
+        />
+
+        {/* Desktop header */}
+        <header className="hidden lg:flex border-b border-gray-200 bg-white p-4 items-center justify-between shrink-0 z-20">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden border border-gray-100 shrink-0">
               {project?.photoURL ? <img src={project.photoURL} alt={project.name} className="w-full h-full object-cover" /> : <span className="text-xl">🏎️</span>}
@@ -155,20 +178,20 @@ export default function CalendarTool() {
           </div>
         </header>
 
-        <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between shrink-0 shadow-sm z-10">
-          <div className="flex items-center gap-6">
-             <div className="flex items-center gap-4">
-                <h2 className="text-lg font-bold text-gray-900 w-48 text-center uppercase tracking-widest">{monthNames[month]} {year}</h2>
+        <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between shrink-0 shadow-sm z-10">
+          <div className="flex items-center gap-2 sm:gap-6">
+             <div className="flex items-center gap-2 sm:gap-4">
+                <h2 className="text-sm sm:text-lg font-bold text-gray-900 w-32 sm:w-48 text-center uppercase tracking-widest">{monthNames[month]} {year}</h2>
                 <div className="flex items-center gap-1">
-                  <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 transition-all active:scale-95"><ChevronLeft className="w-5 h-5" /></button>
-                   <button onClick={goToToday} className={clsx("px-4 py-1.5 text-xs font-bold uppercase tracking-widest transition-all active:scale-95 rounded-lg border", isViewingCurrentMonth ? "bg-[#ff7f00] text-white border-[#ff7f00] shadow-md shadow-orange-100" : "bg-white text-gray-400 border-dashed border-gray-300 hover:border-[#ff7f00] hover:text-[#ff7f00]")}>HOJE</button>
-                  <button onClick={nextMonth} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 transition-all active:scale-95"><ChevronRight className="w-5 h-5" /></button>
+                  <button onClick={prevMonth} className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-lg text-gray-600 transition-all active:scale-95"><ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" /></button>
+                   <button onClick={goToToday} className={clsx("px-2 sm:px-4 py-1 sm:py-1.5 text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-all active:scale-95 rounded-lg border", isViewingCurrentMonth ? "bg-[#ff7f00] text-white border-[#ff7f00] shadow-md shadow-orange-100" : "bg-white text-gray-400 border-dashed border-gray-300 hover:border-[#ff7f00] hover:text-[#ff7f00]")}>HOJE</button>
+                  <button onClick={nextMonth} className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-lg text-gray-600 transition-all active:scale-95"><ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" /></button>
                 </div>
              </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto p-6 flex flex-col">
+        <div className="flex-1 overflow-auto p-2 sm:p-6 flex flex-col mobile-pb-nav">
           <div className="bg-white rounded-2xl shadow-xl border border-gray-200 flex-1 flex flex-col overflow-hidden">
             <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50/50">
               {weekDays.map(day => (<div key={day} className="py-4 text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">{day}</div>))}
@@ -179,7 +202,7 @@ export default function CalendarTool() {
                 const isToday = today.toDateString() === date.toDateString();
                 const dayTasks = getTasksForDay(date);
                 return (
-                  <div key={date.toString()} className={clsx("border-r border-b border-gray-100 p-2 min-h-[120px] transition-all relative group overflow-hidden", isToday ? "bg-orange-50/20" : "hover:bg-gray-50/50")}>
+                  <div key={date.toString()} className={clsx("border-r border-b border-gray-100 p-1 sm:p-2 min-h-[60px] sm:min-h-[120px] transition-all relative group overflow-hidden", isToday ? "bg-orange-50/20" : "hover:bg-gray-50/50")}>
                     <div className="flex justify-between items-start mb-2 relative z-10"><span className={clsx("text-xs font-semibold w-7 h-7 flex items-center justify-center rounded-lg transition-all", isToday ? "bg-[#ff7f00] text-white" : "text-gray-400 group-hover:text-gray-900")}>{date.getDate()}</span>{date.getDate() === 1 && (<span className="text-[10px] font-bold text-[#ff7f00] uppercase tracking-wider">{monthNames[date.getMonth()].substring(0, 3)}</span>)}</div>
                     <div className="space-y-1.5 relative z-10 max-h-[100px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-200">
                       {dayTasks.map(task => { const hasColor = task.color && task.color !== 'transparent'; const displayColor = hasColor ? task.color : '#9ca3af'; return (
@@ -199,6 +222,14 @@ export default function CalendarTool() {
       {project && isSettingsOpen && (
         <ProjectSettingsModal project={project} onClose={() => setIsSettingsOpen(false)} />
       )}
+
+      <MobileBottomNav onOpenProfile={() => setIsProfileOpen(true)} />
+
+      <AnimatePresence>
+        {isProfileOpen && (
+          <UserProfileModal onClose={() => setIsProfileOpen(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

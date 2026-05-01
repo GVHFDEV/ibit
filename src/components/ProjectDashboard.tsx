@@ -10,7 +10,12 @@ import { db } from '../firebase';
 import { doc, collection, query, where, onSnapshot, documentId } from 'firebase/firestore';
 import { Project, Board, Task, UserProfile } from '../types';
 import Sidebar from './Sidebar';
+import MobileHeader from './MobileHeader';
+import MobileBottomNav from './MobileBottomNav';
+import MobileToolsDrawer from './MobileToolsDrawer';
+import UserProfileModal from './UserProfileModal';
 import ProjectSettingsModal from './ProjectSettingsModal';
+import { AnimatePresence } from 'motion/react';
 import { CheckCircle2, ListTodo } from 'lucide-react';
 
 function dueDateToDate(task: Task): Date | null {
@@ -56,6 +61,10 @@ export default function ProjectDashboard() {
   const [projectMembers, setProjectMembers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Mobile states
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   useEffect(() => {
     if (!projectId || !user) return;
@@ -138,8 +147,26 @@ export default function ProjectDashboard() {
         projectName={project.name}
         onOpenSettings={isOwner ? () => setIsSettingsOpen(true) : undefined}
       />
+
+      {/* Mobile Drawer (fixed overlay, position doesn't matter) */}
+      <MobileToolsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        projectId={projectId!}
+        projectName={project.name}
+        onOpenSettings={isOwner ? () => setIsSettingsOpen(true) : undefined}
+      />
+
       <div className="flex-1 flex flex-col h-screen overflow-hidden min-w-0">
-        <header className="border-b border-gray-200 bg-white p-4 flex items-center justify-between shrink-0">
+        {/* Mobile Header */}
+        <MobileHeader
+          projectName={project.name}
+          projectPhotoURL={project.photoURL || undefined}
+          onOpenDrawer={() => setIsDrawerOpen(true)}
+        />
+
+        {/* Desktop header — hidden on mobile */}
+        <header className="hidden lg:flex border-b border-gray-200 bg-white p-4 items-center justify-between shrink-0">
           <div className="flex items-center gap-4 min-w-0">
             <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden border border-gray-100 shrink-0">
               {project.photoURL ? (
@@ -178,8 +205,7 @@ export default function ProjectDashboard() {
             </div>
           </div>
         </header>
-
-        <main className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+        <main className="flex-1 flex flex-col min-h-0 overflow-y-auto mobile-pb-nav">
           <div className="flex flex-col flex-1 min-h-0 gap-5 sm:gap-6 w-full max-w-[1920px] mx-auto px-4 py-5 sm:px-6 md:px-8 lg:px-10 xl:px-12 pb-6 sm:pb-8">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 shrink-0">
               <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 flex items-center justify-start min-h-[112px] sm:min-h-[128px]">
@@ -230,6 +256,16 @@ export default function ProjectDashboard() {
       {isSettingsOpen && (
         <ProjectSettingsModal project={project} onClose={() => setIsSettingsOpen(false)} />
       )}
+
+      {/* Mobile bottom nav */}
+      <MobileBottomNav onOpenProfile={() => setIsProfileOpen(true)} />
+
+      {/* Profile modal */}
+      <AnimatePresence>
+        {isProfileOpen && (
+          <UserProfileModal onClose={() => setIsProfileOpen(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

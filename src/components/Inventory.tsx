@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import MobileHeader from './MobileHeader';
+import MobileBottomNav from './MobileBottomNav';
+import MobileToolsDrawer from './MobileToolsDrawer';
+import UserProfileModal from './UserProfileModal';
 import { db } from '../firebase';
 import { 
   collection, 
@@ -54,6 +58,8 @@ export default function Inventory() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
 
@@ -171,9 +177,23 @@ export default function Inventory() {
         projectName={project?.name} 
         onOpenSettings={user?.uid === project?.ownerId ? () => setIsSettingsOpen(true) : undefined} 
       />
+
+      <MobileToolsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        projectId={projectId!}
+        projectName={project?.name}
+        onOpenSettings={user?.uid === project?.ownerId ? () => setIsSettingsOpen(true) : undefined}
+      />
       
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="border-b border-gray-200 bg-white p-4 flex items-center justify-between shrink-0 z-20">
+        <MobileHeader
+          projectName={project?.name}
+          projectPhotoURL={project?.photoURL || undefined}
+          onOpenDrawer={() => setIsDrawerOpen(true)}
+        />
+
+        <header className="hidden lg:flex border-b border-gray-200 bg-white p-4 items-center justify-between shrink-0 z-20">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden border border-gray-100 shrink-0">
               {project?.photoURL ? (
@@ -209,20 +229,20 @@ export default function Inventory() {
           </div>
         </header>
 
-        <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between shrink-0 shadow-sm z-10">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
+        <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0 shadow-sm z-10">
+          <div className="flex items-center gap-0 sm:gap-6 w-full sm:w-auto">
+            <div className="hidden sm:flex items-center gap-2 shrink-0">
               <Package className="w-5 h-5 text-[#ff7f00]" />
-              <h2 className="text-lg font-bold text-gray-900 uppercase tracking-widest">
-                GERENCIADOR DE INVENTÁRIO
+              <h2 className="text-sm sm:text-lg font-bold text-gray-900 uppercase tracking-widest">
+                INVENTÁRIO
               </h2>
             </div>
             
-            <div className="relative w-64">
+            <div className="relative flex-1 sm:w-64 sm:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input 
                 type="text"
-                placeholder="Procurar produto ou tag..."
+                placeholder="Procurar..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#ff7f00] text-sm font-medium rounded-lg transition-all"
@@ -232,15 +252,16 @@ export default function Inventory() {
 
           <button 
             onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
-            className="bg-[#ff7f00] hover:bg-orange-600 text-white px-5 py-2 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg active:scale-95 shadow-md shadow-orange-100"
+            className="bg-[#ff7f00] hover:bg-orange-600 text-white px-4 sm:px-5 py-2 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg active:scale-95 shadow-md shadow-orange-100 w-full sm:w-auto justify-center"
           >
             <Plus className="w-4 h-4" />
-            ADICIONAR PRODUTO
+            <span className="hidden sm:inline">ADICIONAR PRODUTO</span>
+            <span className="sm:hidden">ADICIONAR</span>
           </button>
         </div>
 
-        <div className="flex-1 overflow-auto p-6 scrollbar-hide">
-          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="flex-1 overflow-auto p-3 sm:p-6 scrollbar-hide mobile-pb-nav">
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
@@ -378,6 +399,14 @@ export default function Inventory() {
           project={project} 
         />
       )}
+
+      <MobileBottomNav onOpenProfile={() => setIsProfileOpen(true)} />
+
+      <AnimatePresence>
+        {isProfileOpen && (
+          <UserProfileModal onClose={() => setIsProfileOpen(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

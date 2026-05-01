@@ -31,7 +31,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
 
   return (
     <aside 
-      className={`bg-white border-r border-gray-200 flex flex-col h-screen shrink-0 transition-all duration-300 ease-in-out relative ${isCollapsed ? 'w-20' : 'w-64'}`}
+      className={`hidden lg:flex bg-white border-r border-gray-200 flex-col h-screen shrink-0 transition-all duration-300 ease-in-out relative ${isCollapsed ? 'w-20' : 'w-64'}`}
     >
       {/* Toggle Button */}
       <button

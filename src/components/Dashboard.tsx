@@ -6,6 +6,8 @@ import { LogOut, LayoutDashboard, Plus, X, Users, UserPlus, Trash2, AlertTriangl
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, getDocs, updateDoc, doc, writeBatch } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../utils/errorHandlers';
 import Sidebar from './Sidebar';
+import MobileBottomNav from './MobileBottomNav';
+import UserProfileModal from './UserProfileModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { Project } from '../types';
 
@@ -35,6 +37,9 @@ export default function Dashboard() {
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Mobile profile modal
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -202,25 +207,27 @@ export default function Dashboard() {
     <div className="min-h-screen bg-[#f8f9fa] text-gray-900 flex h-screen">
       <Sidebar />
 
-      <main className="flex-1 p-8 overflow-y-auto">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto mobile-pb-nav mt-6 sm:mt-0">
         <div className="max-w-6xl mx-auto">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-2xl font-bold uppercase tracking-wider text-gray-900">Meus Projetos</h2>
+          {/* Header — stacks on mobile */}
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 sm:mb-8">
+            <h2 className="text-xl sm:text-2xl font-bold uppercase tracking-wider text-gray-900">Meus Projetos</h2>
             
-            <div className="flex gap-4">
+            <div className="flex gap-2 sm:gap-4">
               <button 
                 onClick={() => setIsJoinModalOpen(true)}
-                className="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 px-5 py-2.5 flex items-center gap-2 transition-colors font-bold uppercase tracking-wider rounded-none"
+                className="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 px-3 sm:px-5 py-2.5 flex items-center gap-2 transition-colors font-bold uppercase tracking-wider rounded-none text-xs sm:text-sm flex-1 sm:flex-none justify-center"
               >
-                <UserPlus className="w-5 h-5" />
+                <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
                 Ingressar
               </button>
               <button 
                 onClick={() => setIsModalOpen(true)}
-                className="bg-[#ff7f00] hover:bg-orange-600 text-white px-5 py-2.5 flex items-center gap-2 transition-colors font-bold uppercase tracking-wider rounded-none"
+                className="bg-[#ff7f00] hover:bg-orange-600 text-white px-3 sm:px-5 py-2.5 flex items-center gap-2 transition-colors font-bold uppercase tracking-wider rounded-none text-xs sm:text-sm flex-1 sm:flex-none justify-center"
               >
-                <Plus className="w-5 h-5" />
-                Novo Projeto
+                <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="hidden sm:inline">Novo Projeto</span>
+                <span className="sm:hidden">Novo</span>
               </button>
             </div>
           </div>
@@ -311,7 +318,7 @@ export default function Dashboard() {
       {/* --- Modais Existentes --- */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -359,7 +366,7 @@ export default function Dashboard() {
 
       <AnimatePresence>
         {isJoinModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
              <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -407,7 +414,7 @@ export default function Dashboard() {
       {/* --- NOVOS MODAIS: Sair e Excluir --- */}
       <AnimatePresence>
         {isLeaveModalOpen && projectToLeave && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -447,7 +454,7 @@ export default function Dashboard() {
 
       <AnimatePresence>
         {isDeleteModalOpen && projectToDelete && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -501,6 +508,15 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
+      {/* Mobile bottom nav */}
+      <MobileBottomNav onOpenProfile={() => setIsProfileOpen(true)} />
+
+      {/* Profile modal */}
+      <AnimatePresence>
+        {isProfileOpen && (
+          <UserProfileModal onClose={() => setIsProfileOpen(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

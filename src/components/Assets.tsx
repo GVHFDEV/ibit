@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import MobileHeader from './MobileHeader';
+import MobileBottomNav from './MobileBottomNav';
+import MobileToolsDrawer from './MobileToolsDrawer';
+import UserProfileModal from './UserProfileModal';
 import { db } from '../firebase';
 import { 
   collection, 
@@ -55,6 +59,8 @@ export default function Assets() {
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [editingFolder, setEditingFolder] = useState<AssetFolder | null>(null);
   const [editingLink, setEditingLink] = useState<AssetLink | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'folder' | 'link'; name: string } | null>(null);
@@ -218,9 +224,23 @@ export default function Assets() {
         projectName={project?.name} 
         onOpenSettings={user?.uid === project?.ownerId ? () => setIsSettingsOpen(true) : undefined} 
       />
+
+      <MobileToolsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        projectId={projectId!}
+        projectName={project?.name}
+        onOpenSettings={user?.uid === project?.ownerId ? () => setIsSettingsOpen(true) : undefined}
+      />
       
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="border-b border-gray-200 bg-white p-4 flex items-center justify-between shrink-0 z-20">
+        <MobileHeader
+          projectName={project?.name}
+          projectPhotoURL={project?.photoURL || undefined}
+          onOpenDrawer={() => setIsDrawerOpen(true)}
+        />
+
+        <header className="hidden lg:flex border-b border-gray-200 bg-white p-4 items-center justify-between shrink-0 z-20">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden border border-gray-100 shrink-0">
               {project?.photoURL ? (
@@ -256,20 +276,20 @@ export default function Assets() {
           </div>
         </header>
 
-        <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between shrink-0 shadow-sm z-10">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
+        <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0 shadow-sm z-10">
+          <div className="flex items-center gap-0 sm:gap-6 w-full sm:w-auto">
+            <div className="hidden sm:flex items-center gap-2 shrink-0">
               <Folder className="w-5 h-5 text-[#ff7f00]" />
-              <h2 className="text-lg font-bold text-gray-900 uppercase tracking-widest">
-                ORGANIZADOR DE ATIVOS
+              <h2 className="text-sm sm:text-lg font-bold text-gray-900 uppercase tracking-widest">
+                ATIVOS
               </h2>
             </div>
             
-            <div className="relative w-64">
+            <div className="relative flex-1 sm:w-64 sm:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input 
                 type="text"
-                placeholder="Procurar pasta ou link..."
+                placeholder="Procurar..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#ff7f00] text-sm font-medium rounded-lg transition-all"
@@ -277,20 +297,20 @@ export default function Assets() {
             </div>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
             <button 
               onClick={() => { setEditingFolder(null); setIsFolderModalOpen(true); }}
-              className="bg-white text-gray-700 border border-gray-300 px-5 py-2 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg hover:bg-gray-50 active:scale-95"
+              className="bg-white text-gray-700 border border-gray-300 px-3 sm:px-5 py-2 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg hover:bg-gray-50 active:scale-95 flex-1 sm:flex-none justify-center"
             >
               <Plus className="w-4 h-4" />
-              NOVA PASTA
+              PASTA
             </button>
             <button 
               onClick={() => { setEditingLink(null); setIsLinkModalOpen(true); }}
-              className="bg-[#ff7f00] hover:bg-orange-600 text-white px-5 py-2 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg active:scale-95 shadow-md shadow-orange-100"
+              className="bg-[#ff7f00] hover:bg-orange-600 text-white px-3 sm:px-5 py-2 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg active:scale-95 shadow-md shadow-orange-100 flex-1 sm:flex-none justify-center"
             >
               <LinkIcon className="w-4 h-4" />
-              ADICIONAR LINK
+              LINK
             </button>
           </div>
         </div>
@@ -451,6 +471,14 @@ export default function Assets() {
           project={project} 
         />
       )}
+
+      <MobileBottomNav onOpenProfile={() => setIsProfileOpen(true)} />
+
+      <AnimatePresence>
+        {isProfileOpen && (
+          <UserProfileModal onClose={() => setIsProfileOpen(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

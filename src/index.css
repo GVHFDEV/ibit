@@ -18,3 +18,28 @@
   }
 }
 
+/* Mobile: safe area for iPhones with notch */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Mobile: content needs extra bottom padding for fixed navbar */
+@media (max-width: 1023px) {
+  .mobile-pb-nav {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px) + 0.5rem);
+  }
+}
+
+/* Horizontal scroll snap (Kanban columns) */
+.scroll-snap-x {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.scroll-snap-center {
+  scroll-snap-align: center;
+}
+
+/* Hide scrollbar but keep scroll */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+

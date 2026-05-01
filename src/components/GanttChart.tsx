@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import MobileHeader from './MobileHeader';
+import MobileBottomNav from './MobileBottomNav';
+import MobileToolsDrawer from './MobileToolsDrawer';
+import UserProfileModal from './UserProfileModal';
 import { db } from '../firebase';
 import { 
   collection, 
@@ -393,6 +397,8 @@ export default function GanttChart() {
   const [editingTask, setEditingTask] = useState<GanttTask | null>(null);
   const [editingStakeholder, setEditingStakeholder] = useState<ProjectStakeholder | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   // Custom Gantt Start Date State
   const [isStartDateModalOpen, setIsStartDateModalOpen] = useState(false);
@@ -674,9 +680,22 @@ export default function GanttChart() {
     <div className="flex bg-[#f8f9fa] min-h-screen font-sans selection:bg-orange-100 selection:text-[#ff7f00]">
       <Sidebar projectId={projectId} projectName={project?.name} onOpenSettings={() => setIsSettingsOpen(true)} />
 
+      <MobileToolsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        projectId={projectId!}
+        projectName={project?.name}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+      />
+
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-        {/* --- Header --- */}
-        <header className="border-b border-gray-200 bg-white p-4 flex items-center justify-between shrink-0 z-20">
+        <MobileHeader
+          projectName={project?.name}
+          projectPhotoURL={project?.photoURL || undefined}
+          onOpenDrawer={() => setIsDrawerOpen(true)}
+        />
+
+        <header className="hidden lg:flex border-b border-gray-200 bg-white p-4 items-center justify-between shrink-0 z-20">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden border border-gray-100 shrink-0">
               {project?.photoURL ? (
@@ -714,8 +733,8 @@ export default function GanttChart() {
 
         {/* --- Subheader --- */}
         <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between shrink-0 shadow-sm z-10 h-[68px]">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-0 sm:gap-6">
+            <div className="hidden sm:flex items-center gap-2">
               <BarChart className="w-5 h-5 text-[#ff7f00]" />
               <h2 className="text-lg font-bold text-gray-900 uppercase tracking-widest">
                 GANTT
@@ -1060,6 +1079,14 @@ export default function GanttChart() {
                </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      <MobileBottomNav onOpenProfile={() => setIsProfileOpen(true)} />
+
+      <AnimatePresence>
+        {isProfileOpen && (
+          <UserProfileModal onClose={() => setIsProfileOpen(false)} />
         )}
       </AnimatePresence>
     </div>
