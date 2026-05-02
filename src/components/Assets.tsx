@@ -486,20 +486,26 @@ export default function Assets() {
             </div>
           ) : (
             <DragDropContext onDragEnd={onDragEnd}>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
-              {/* Back to Home folder if nested */}
-              {currentFolderId && (
-                <div 
-                  onClick={() => {
-                    const current = folders.find(f => f.id === currentFolderId);
-                    setCurrentFolderId(current?.parentId || null);
-                  }}
-                  className="group bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#ff7f00] hover:shadow-xl transition-all relative"
-                >
-                  <ArrowLeft className="w-12 h-12 text-gray-200 group-hover:text-[#ff7f00] transition-colors" />
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-widest text-center transition-colors group-hover:text-gray-900 line-clamp-2">VOLTAR</span>
-                </div>
-              )}
+              <Droppable droppableId="main-area" type="MAIN">
+                {(provided) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6"
+                  >
+                    {/* Back to Home folder if nested */}
+                    {currentFolderId && (
+                      <div
+                        onClick={() => {
+                          const current = folders.find(f => f.id === currentFolderId);
+                          setCurrentFolderId(current?.parentId || null);
+                        }}
+                        className="group bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#ff7f00] hover:shadow-xl transition-all relative"
+                      >
+                        <ArrowLeft className="w-12 h-12 text-gray-200 group-hover:text-[#ff7f00] transition-colors" />
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-widest text-center transition-colors group-hover:text-gray-900 line-clamp-2">VOLTAR</span>
+                      </div>
+                    )}
 
               {/* Folders List */}
               {filteredFolders.map((folder, index) => (
@@ -643,7 +649,10 @@ export default function Assets() {
                   <p className="font-bold uppercase tracking-widest text-[10px]">Nenhum ativo encontrado nesta view</p>
                 </div>
               )}
-            </div>
+              {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
             </DragDropContext>
           )}
         </div>
