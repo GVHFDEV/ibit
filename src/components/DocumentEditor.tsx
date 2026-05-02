@@ -17,6 +17,8 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import ImageResize from 'tiptap-extension-resize-image';
 import { TextAlign } from '@tiptap/extension-text-align';
 import imageCompression from 'browser-image-compression';
+import CalendarEventExtension from '../extensions/CalendarEventExtension';
+import { extractSyncEvents } from '../utils/extractEvents';
 import { 
   ArrowLeft, 
   Cloud, 
@@ -45,8 +47,15 @@ import {
   AlignCenter,
   AlignRight,
   Tag as TagIcon,
-  X
+  X,
+  CalendarDays,
+  Printer
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { jsPDF } from 'jspdf';
+import { toPng } from 'html-to-image';
+// @ts-ignore
+import logoIbit from '../media/ibitlogo.svg';
 import clsx from 'clsx';
 import { ProjectTag } from '../types';
 import { TAG_COLORS } from './TaskDetailsModal';
@@ -80,7 +89,8 @@ const TagNode = Node.create({
       mergeAttributes({
         'data-type': 'tag',
         'data-tag-label': HTMLAttributes.label,
-        class: `px-2 py-0.5 text-[10px] font-bold border rounded inline-block mx-1 ${HTMLAttributes.color}`,
+        class: `px-2 py-0.5 text-[10px] font-bold border rounded inline-flex items-center justify-center mx-1 whitespace-nowrap overflow-visible ${HTMLAttributes.color}`,
+        style: 'white-space: nowrap !important;',
       }),
       HTMLAttributes.label,
     ]
@@ -125,6 +135,7 @@ export default function DocumentEditor({ documentId, onClose }: DocumentEditorPr
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -174,13 +185,164 @@ export default function DocumentEditor({ documentId, onClose }: DocumentEditorPr
     }
   };
 
-  // Auto-resize title textarea
-  useEffect(() => {
+  const handleExportPDF = async () => {
+    if (isExporting || !editor) return;
+    setIsExporting(true);
+
+    const elementId = 'pdf-export-content';
+    const original = document.getElementById(elementId);
+
+    if (!original) {
+      console.error('[PDF Export] Target element not found');
+      setIsExporting(false);
+      return;
+    }
+
+    // Clean up any stray footers from previous failed attempts
+    document.querySelectorAll('[data-pdf-footer="true"]').forEach(el => el.remove());
+
+    // Save original styles to restore later
+    const originalOverflow = original.style.overflow;
+    const originalWidth = original.style.width;
+    const originalMaxWidth = original.style.maxWidth;
+
+    // Also fix overflow on all table wrappers inside
+    const tableWrappers = original.querySelectorAll('.tableWrapper');
+    const originalTableOverflows: string[] = [];
+    tableWrappers.forEach((tw, i) => {
+      originalTableOverflows[i] = (tw as HTMLElement).style.overflow;
+      (tw as HTMLElement).style.overflow = 'visible';
+    });
+
+    try {
+      // Temporarily expand container so tables are fully visible
+      original.style.overflow = 'visible';
+      original.style.maxWidth = 'none';
+      original.style.width = `${Math.max(original.scrollWidth, 900)}px`;
+
+      // 1. Build footer
+      const dateStr = new Date().toLocaleDateString('pt-BR');
+      const logoImg = new window.Image();
+      logoImg.src = logoIbit;
+      logoImg.style.cssText = 'height: 44px; object-fit: contain; display: block;';
+      
+      await new Promise<void>((resolve) => {
+        logoImg.onload = () => resolve();
+        logoImg.onerror = () => resolve();
+      });
+
+      const footer = document.createElement('div');
+      footer.setAttribute('data-pdf-footer', 'true');
+      footer.style.cssText = 'display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:48px;padding-top:24px;border-top:1px solid #e5e7eb;box-sizing:border-box;';
+
+      const labelSpan = document.createElement('span');
+      labelSpan.style.cssText = `font-family:sans-serif;font-size:14px;color:#6b7280;font-weight:500;`;
+      labelSpan.textContent = `Documento exportado da plataforma IBIT em ${dateStr}`;
+
+      footer.appendChild(labelSpan);
+      footer.appendChild(logoImg);
+      original.appendChild(footer);
+
+      // Wait for layout to settle
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // 2. Capture content as image
+      const dataUrl = await toPng(original, {
+        cacheBust: true,
+        backgroundColor: '#ffffff',
+        pixelRatio: 2,
+        filter: (node) => {
+          if (node?.classList?.contains('ProseMirror-separator')) {
+            return false;
+          }
+          return true;
+        }
+      });
+
+      // 3. Generate PDF using A4 portrait dimensions
+      // A4 in px at 72 DPI: 595.28 x 841.89
+      const pdfWidth = 595.28;
+      const pdfHeight = 841.89;
+      const margin = 40;
+
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'pt',
+        format: 'a4'
+      });
+
+      const availableWidth = pdfWidth - margin * 2;
+      const availableHeight = pdfHeight - margin * 2;
+
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const imgRatio = imgProps.height / imgProps.width;
+
+      // Scale image to fit page width
+      const drawWidth = availableWidth;
+      const drawHeight = drawWidth * imgRatio;
+
+      const xOffset = margin;
+
+      let heightLeft = drawHeight;
+      let position = margin;
+
+      // Page 1
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(0, 0, pdfWidth, pdfHeight, 'F');
+      pdf.addImage(dataUrl, 'PNG', xOffset, position, drawWidth, drawHeight);
+      heightLeft -= availableHeight;
+
+      // Additional pages for long documents
+      while (heightLeft > 0) {
+        position -= availableHeight;
+        pdf.addPage();
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(0, 0, pdfWidth, pdfHeight, 'F');
+        pdf.addImage(dataUrl, 'PNG', xOffset, position, drawWidth, drawHeight);
+        heightLeft -= availableHeight;
+      }
+
+      const fileName = `${title.replace(/\s+/g, '-') || 'documento'}-${new Date().toISOString().substring(0, 10)}.pdf`;
+      pdf.save(fileName);
+
+    } catch (err) {
+      console.error('[PDF Export] Error:', err);
+      setErrorMsg('Erro ao exportar PDF');
+      setTimeout(() => setErrorMsg(null), 3000);
+    } finally {
+      // Restore original styles
+      original.style.overflow = originalOverflow;
+      original.style.maxWidth = originalMaxWidth;
+      original.style.width = originalWidth;
+      tableWrappers.forEach((tw, i) => {
+        (tw as HTMLElement).style.overflow = originalTableOverflows[i];
+      });
+      document.querySelectorAll('[data-pdf-footer="true"]').forEach(el => el.remove());
+      setIsExporting(false);
+    }
+  };
+
+  // Auto-resize title textarea (Robust version)
+  const resizeTitle = useCallback(() => {
     if (titleTextareaRef.current) {
       titleTextareaRef.current.style.height = 'auto';
-      titleTextareaRef.current.style.height = titleTextareaRef.current.scrollHeight + 'px';
+      // Add a generous buffer (10px) to absolutely guarantee no clipping of descenders
+      titleTextareaRef.current.style.height = (titleTextareaRef.current.scrollHeight + 10) + 'px';
     }
-  }, [title]);
+  }, []);
+
+  useEffect(() => {
+    resizeTitle();
+    window.addEventListener('resize', resizeTitle);
+    
+    // Fallback: trigger after a short delay in case web fonts load late and change wrapping
+    const timeout = setTimeout(resizeTitle, 300);
+    
+    return () => {
+      window.removeEventListener('resize', resizeTitle);
+      clearTimeout(timeout);
+    };
+  }, [title, resizeTitle]);
 
   // Keep titleRef in sync
   useEffect(() => {
@@ -229,9 +391,13 @@ export default function DocumentEditor({ documentId, onClose }: DocumentEditorPr
         const docRef = doc(db, 'assetDocuments', documentId);
         console.log("[DocumentEditor] Saving to Firestore...", { documentId, title });
 
+        // Extract sync events from the TipTap JSON before saving
+        const syncEvents = extractSyncEvents(debouncedContent);
+
         await setDoc(docRef, {
           content: debouncedContent,
           title: title,
+          syncEvents: syncEvents,
           updatedAt: serverTimestamp(),
         }, { merge: true });
         
@@ -275,6 +441,7 @@ export default function DocumentEditor({ documentId, onClose }: DocumentEditorPr
         nested: true,
       }),
       TagNode,
+      CalendarEventExtension,
     ],
     content: '',
     editorProps: {
@@ -687,6 +854,12 @@ export default function DocumentEditor({ documentId, onClose }: DocumentEditorPr
         >
           <ImagePlus className="w-4 h-4" />
         </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().insertCalendarEvent().run()}
+          title="Inserir Evento de Calendário"
+        >
+          <CalendarDays className="w-4 h-4" />
+        </ToolbarButton>
 
           <div className="relative" ref={tagButtonRef}>
             <ToolbarButton
@@ -844,6 +1017,16 @@ export default function DocumentEditor({ documentId, onClose }: DocumentEditorPr
         >
           <Redo2 className="w-4 h-4" />
         </ToolbarButton>
+
+        <div className="w-px h-5 bg-gray-200 mx-1 shrink-0" />
+
+        <ToolbarButton
+          onClick={handleExportPDF}
+          disabled={isExporting}
+          title="Exportar PDF"
+        >
+          {isExporting ? <Loader2 className="w-4 h-4 animate-spin text-[#ff7f00]" /> : <Printer className="w-4 h-4" />}
+        </ToolbarButton>
       </div>
 
       {/* --- Editor Content Area --- */}
@@ -954,6 +1137,7 @@ export default function DocumentEditor({ documentId, onClose }: DocumentEditorPr
           @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         `}</style>
         <div 
+          id="pdf-export-content"
           className="max-w-5xl mx-auto px-6 sm:px-10 py-10 sm:py-16 editor-wrapper overflow-x-auto"
           onContextMenu={(e) => {
             if (editor && editor.isActive('table')) {
@@ -970,7 +1154,7 @@ export default function DocumentEditor({ documentId, onClose }: DocumentEditorPr
             onChange={(e) => handleTitleChange(e.target.value)}
             onKeyDown={handleTitleKeyDown}
             placeholder="Documento sem título"
-            className="w-full text-4xl sm:text-5xl font-black text-gray-900 placeholder-gray-200 focus:outline-none border-none bg-transparent mb-8 tracking-tight leading-tight resize-none overflow-hidden"
+            className="w-full text-4xl sm:text-5xl font-black text-gray-900 placeholder-gray-200 focus:outline-none border-none bg-transparent mb-8 tracking-tight leading-[1.2] resize-none overflow-hidden p-0"
           />
 
           {/* TipTap Editor */}
@@ -1036,91 +1220,114 @@ export default function DocumentEditor({ documentId, onClose }: DocumentEditorPr
         </div>
       )}
       {/* Bottom Sheet Mobile for Tags */}
-      {showTagMenu && (
-        <div className="lg:hidden fixed inset-0 z-[100] flex items-end bottom-sheet-overlay" onClick={() => setShowTagMenu(false)}>
-          <div 
-            className="w-full bg-white rounded-t-3xl p-6 pb-12 bottom-sheet max-h-[80vh] overflow-y-auto"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">
-                {isAddingTag ? 'CRIAR NOVA TAG' : 'SELECIONAR TAG'}
-              </h3>
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => setIsAddingTag(!isAddingTag)}
-                  className="px-4 py-2 bg-orange-50 text-[#ff7f00] text-[10px] font-black rounded-full uppercase tracking-widest"
-                >
-                  {isAddingTag ? 'VOLTAR' : '+ NOVA'}
-                </button>
-                <button onClick={() => { setShowTagMenu(false); setIsAddingTag(false); }} className="p-2 bg-gray-100 rounded-full">
-                  <X className="w-4 h-4 text-gray-500" />
-                </button>
-              </div>
-            </div>
-            
-            {isAddingTag ? (
-              <div className="space-y-6">
-                <input
-                  type="text"
-                  autoFocus
-                  value={newTagLabel}
-                  onChange={(e) => setNewTagLabel(e.target.value)}
-                  placeholder="Nome da tag..."
-                  className="w-full bg-gray-50 border border-gray-200 px-4 py-4 text-sm text-gray-900 focus:outline-none focus:border-[#ff7f00] rounded-2xl"
-                />
-                <div className="grid grid-cols-4 gap-3">
-                  {TAG_COLORS.map(tc => (
-                    <button
-                      key={tc.id}
-                      type="button"
-                      onClick={() => setSelectedTagColor(tc.color)}
-                      className={clsx(
-                        "aspect-square rounded-xl border-2 transition-all",
-                        selectedTagColor === tc.color ? "border-gray-900 scale-110 shadow-lg" : "border-transparent"
-                      )}
-                    >
-                      <div className={clsx("w-full h-full rounded-lg", tc.color.split(' ')[0])} />
-                    </button>
-                  ))}
+      <AnimatePresence>
+        {showTagMenu && (
+          <div className="lg:hidden fixed inset-0 z-[100] flex items-end bottom-sheet-overlay" onClick={() => setShowTagMenu(false)}>
+            <motion.div 
+              initial={{ translateY: '100%' }}
+              animate={{ translateY: 0 }}
+              exit={{ translateY: '100%' }}
+              className="w-full bg-white rounded-t-3xl p-6 pb-12 bottom-sheet max-h-[80vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">
+                  {isAddingTag ? 'CRIAR NOVA TAG' : 'SELECIONAR TAG'}
+                </h3>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setIsAddingTag(!isAddingTag)}
+                    className="px-4 py-2 bg-orange-50 text-[#ff7f00] text-[10px] font-black rounded-full uppercase tracking-widest"
+                  >
+                    {isAddingTag ? 'VOLTAR' : '+ NOVA'}
+                  </button>
+                  <button onClick={() => { setShowTagMenu(false); setIsAddingTag(false); }} className="p-2 bg-gray-100 rounded-full">
+                    <X className="w-4 h-4 text-gray-500" />
+                  </button>
                 </div>
-                <button 
-                  onClick={handleCreateTag}
-                  className="w-full bg-[#ff7f00] text-white py-5 text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-orange-600 transition-all shadow-xl shadow-orange-100"
-                >
-                  CRIAR TAG
-                </button>
               </div>
-            ) : (
-              <div className="flex flex-wrap gap-3">
-                {projectTags.length === 0 ? (
-                  <div className="w-full py-10 text-center text-xs text-gray-400 italic">
-                    Nenhuma tag disponível no projeto.
+              
+              {isAddingTag ? (
+                <div className="space-y-6">
+                  <input
+                    type="text"
+                    autoFocus
+                    value={newTagLabel}
+                    onChange={(e) => setNewTagLabel(e.target.value)}
+                    placeholder="Nome da tag..."
+                    className="w-full bg-gray-50 border border-gray-200 px-4 py-4 text-sm text-gray-900 focus:outline-none focus:border-[#ff7f00] rounded-2xl"
+                  />
+                  <div className="grid grid-cols-4 gap-3">
+                    {TAG_COLORS.map(tc => (
+                      <button
+                        key={tc.id}
+                        type="button"
+                        onClick={() => setSelectedTagColor(tc.color)}
+                        className={clsx(
+                          "aspect-square rounded-xl border-2 transition-all",
+                          selectedTagColor === tc.color ? "border-gray-900 scale-110 shadow-lg" : "border-transparent"
+                        )}
+                      >
+                        <div className={clsx("w-full h-full rounded-lg", tc.color.split(' ')[0])} />
+                      </button>
+                    ))}
                   </div>
-                ) : (
-                  projectTags.map(tag => (
-                    <button
-                      key={tag.id}
-                      className="transition-transform active:scale-90"
-                      onClick={() => {
-                        editor.chain().focus().insertContent({
-                          type: 'tagNode',
-                          attrs: { label: tag.label, color: tag.color }
-                        }).insertContent(' ').run();
-                        setShowTagMenu(false);
-                      }}
-                    >
-                      <span className={clsx("px-3 py-1.5 text-xs font-bold border rounded-lg shadow-sm inline-block whitespace-nowrap", tag.color)}>
-                        {tag.label}
-                      </span>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
+                  <button 
+                    onClick={handleCreateTag}
+                    className="w-full bg-[#ff7f00] text-white py-5 text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-orange-600 transition-all shadow-xl shadow-orange-100"
+                  >
+                    CRIAR TAG
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-3">
+                  {projectTags.length === 0 ? (
+                    <div className="w-full py-10 text-center text-xs text-gray-400 italic">
+                      Nenhuma tag disponível no projeto.
+                    </div>
+                  ) : (
+                    projectTags.map(tag => (
+                      <button
+                        key={tag.id}
+                        className="transition-transform active:scale-90"
+                        onClick={() => {
+                          editor.chain().focus().insertContent({
+                            type: 'tagNode',
+                            attrs: { label: tag.label, color: tag.color }
+                          }).insertContent(' ').run();
+                          setShowTagMenu(false);
+                        }}
+                      >
+                        <span className={clsx("px-3 py-1.5 text-xs font-bold border rounded-lg shadow-sm inline-block whitespace-nowrap", tag.color)}>
+                          {tag.label}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
+
+      {/* Export Loading Modal */}
+      <AnimatePresence>
+        {isExporting && (
+          <div className="fixed inset-0 z-[9999] bg-[#f8f9fa]/80 backdrop-blur-sm flex flex-col items-center justify-center transition-all">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white p-10 rounded-2xl shadow-2xl flex flex-col items-center max-w-sm text-center border border-gray-200"
+            >
+              <Loader2 className="w-16 h-16 animate-spin text-[#ff7f00] mb-6" />
+              <h2 className="text-xl font-bold text-gray-900 tracking-widest uppercase mb-2">Exportando PDF</h2>
+              <p className="text-gray-500 text-sm font-medium">Renderizando documento e tabelas de alta resolução. Isso pode levar alguns segundos.</p>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

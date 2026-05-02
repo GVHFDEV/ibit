@@ -133,6 +133,7 @@ export interface AssetDocument {
   type: 'note';
   title: string;
   content: Record<string, any>; // TipTap JSON content
+  syncEvents?: Array<{title: string, date: string}>;
   ownerId: string;
   createdAt: any;
   updatedAt: any;

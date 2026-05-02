@@ -24,6 +24,7 @@ export default function CalendarTool() {
   const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [docEvents, setDocEvents] = useState<any[]>([]); // To hold events from assetDocuments
   const [project, setProject] = useState<Project | null>(null);
   const [projectMembers, setProjectMembers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,6 +80,36 @@ export default function CalendarTool() {
     return () => unsubTasks();
   }, [projectId]);
 
+  // 4. Sync document events (from assetDocuments)
+  useEffect(() => {
+    if (!projectId) return;
+
+    const qDocs = query(collection(db, 'assetDocuments'), where('projectId', '==', projectId));
+    const unsubDocs = onSnapshot(qDocs, (snapshot) => {
+      const eventsData: any[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.syncEvents && Array.isArray(data.syncEvents)) {
+          data.syncEvents.forEach((event: any, index: number) => {
+            if (event.date) {
+              eventsData.push({
+                id: `doc-${doc.id}-${index}`,
+                title: event.title || data.title || 'Evento de Documento',
+                dueDate: new Date(event.date + 'T12:00:00'), // Parse as noon to avoid timezone shift
+                color: '#8b5cf6', // A distinct color for document events (e.g. purple)
+                isDocEvent: true,
+                documentId: doc.id
+              });
+            }
+          });
+        }
+      });
+      setDocEvents(eventsData);
+    });
+
+    return () => unsubDocs();
+  }, [projectId]);
+
   // Calendar Helpers
   const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
   const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
@@ -110,7 +141,8 @@ export default function CalendarTool() {
   for (let i = 1; i <= totalDays; i++) days.push(new Date(year, month, i));
 
   const getTasksForDay = (date: Date) => {
-    return tasks.filter(task => {
+    const allEvents = [...tasks, ...docEvents];
+    return allEvents.filter(task => {
       if (!task.dueDate) return false;
       const dueDate = task.dueDate.toDate ? task.dueDate.toDate() : new Date(task.dueDate);
       return dueDate.getDate() === date.getDate() &&
@@ -119,8 +151,12 @@ export default function CalendarTool() {
     });
   };
 
-  const handleTaskClick = (taskId: string) => {
-    navigate(`/project/${projectId}/kanban?taskId=${taskId}`);
+  const handleTaskClick = (taskId: string, isDocEvent?: boolean) => {
+    if (isDocEvent) {
+      navigate(`/project/${projectId}/assets`);
+    } else {
+      navigate(`/project/${projectId}/kanban?taskId=${taskId}`);
+    }
   };
 
   const today = new Date();
@@ -206,8 +242,9 @@ export default function CalendarTool() {
                     <div className="flex justify-between items-start mb-2 relative z-10"><span className={clsx("text-xs font-semibold w-7 h-7 flex items-center justify-center rounded-lg transition-all", isToday ? "bg-[#ff7f00] text-white" : "text-gray-400 group-hover:text-gray-900")}>{date.getDate()}</span>{date.getDate() === 1 && (<span className="text-[10px] font-bold text-[#ff7f00] uppercase tracking-wider">{monthNames[date.getMonth()].substring(0, 3)}</span>)}</div>
                     <div className="space-y-1.5 relative z-10 max-h-[100px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-200">
                       {dayTasks.map(task => { const hasColor = task.color && task.color !== 'transparent'; const displayColor = hasColor ? task.color : '#9ca3af'; return (
-                        <div key={task.id} title={task.title} onClick={() => handleTaskClick(task.id)} className="px-2 py-1.5 rounded-lg text-[10px] font-medium tracking-wide truncate cursor-pointer transition-all hover:translate-x-1 border border-transparent hover:border-black/5 flex items-center gap-2 group/task shadow-sm" style={{ backgroundColor: `${displayColor}15`, color: hasColor ? displayColor : '#4b5563', borderLeft: `3px solid ${displayColor}`, filter: 'brightness(0.98)' }}><span className="truncate flex-1">{task.title}</span>
-                          {task.assignedTo && (<div className="flex -space-x-1.5 ml-auto shrink-0">{(Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo]).slice(0, 3).map((uid, idx) => { const member = projectMembers.find(m => m.uid === uid); return (<div key={uid} className="w-4 h-4 rounded-full border border-white shadow-sm overflow-hidden bg-white shrink-0" title={member?.name || 'Membro'}>{member?.photoURL ? (<img src={member.photoURL} alt="Assignee" className="w-full h-full object-cover" />) : (<div className="w-full h-full bg-[#ff7f00] flex items-center justify-center text-white text-[7px] font-bold uppercase">{member?.name?.charAt(0) || <UserIcon className="w-2 h-2" />}</div>)}</div>); })}{(Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo]).length > 3 && (<div className="w-4 h-4 rounded-full border border-white bg-gray-200 flex items-center justify-center text-[6px] font-bold text-gray-600 shrink-0">+{(Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo]).length - 3}</div>)}</div>)}
+                        <div key={task.id} title={task.title} onClick={() => handleTaskClick(task.id, task.isDocEvent)} className="px-2 py-1.5 rounded-lg text-[10px] font-medium tracking-wide truncate cursor-pointer transition-all hover:translate-x-1 border border-transparent hover:border-black/5 flex items-center gap-2 group/task shadow-sm" style={{ backgroundColor: `${displayColor}15`, color: hasColor ? displayColor : '#4b5563', borderLeft: `3px solid ${displayColor}`, filter: 'brightness(0.98)' }}><span className="truncate flex-1">{task.title}</span>
+                          {task.isDocEvent && <span className="text-[8px] bg-[#8b5cf6] text-white px-1.5 py-0.5 rounded-md uppercase tracking-wider font-bold shrink-0">DOC</span>}
+                          {!task.isDocEvent && task.assignedTo && (<div className="flex -space-x-1.5 ml-auto shrink-0">{(Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo]).slice(0, 3).map((uid, idx) => { const member = projectMembers.find(m => m.uid === uid); return (<div key={uid} className="w-4 h-4 rounded-full border border-white shadow-sm overflow-hidden bg-white shrink-0" title={member?.name || 'Membro'}>{member?.photoURL ? (<img src={member.photoURL} alt="Assignee" className="w-full h-full object-cover" />) : (<div className="w-full h-full bg-[#ff7f00] flex items-center justify-center text-white text-[7px] font-bold uppercase">{member?.name?.charAt(0) || <UserIcon className="w-2 h-2" />}</div>)}</div>); })}{(Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo]).length > 3 && (<div className="w-4 h-4 rounded-full border border-white bg-gray-200 flex items-center justify-center text-[6px] font-bold text-gray-600 shrink-0">+{(Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo]).length - 3}</div>)}</div>)}
                         </div>
                       );})}
                     </div>
