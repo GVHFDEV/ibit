@@ -295,7 +295,7 @@ service cloud.firestore {
                     (request.resource.data.role == resource.data.role || isAdmin());
     }
     match /projects/{projectId} {
-      allow read: if isAuthenticated() || hasValidAuditToken(projectId, request.query.auditToken);
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isValidProject(request.resource.data) &&
                     request.resource.data.ownerId == request.auth.uid &&
                     request.auth.uid in request.resource.data.members;
@@ -304,6 +304,10 @@ service cloud.firestore {
         (isProjectAdmin(projectId) && areImmutableFieldsUnchanged(['ownerId', 'createdAt', 'shortId']) &&
          // Protect auditToken: only owner can modify
          (!('auditToken' in request.resource.data.diff(resource.data).affectedKeys()) || resource.data.ownerId == request.auth.uid))
+        ||
+        // Members can update targetEventName and targetDate (countdown feature)
+        (isProjectMember(projectId) &&
+         areImmutableFieldsUnchanged(['ownerId', 'createdAt', 'shortId', 'name', 'description', 'photoURL', 'members', 'roles', 'ganttStartDate', 'auditToken']))
         ||
         // Owner can transfer ownership (ownerId changes, but must update roles map)
         (resource.data.ownerId == request.auth.uid &&
@@ -320,7 +324,7 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
     }
     match /boards/{boardId} {
-      allow read: if isProjectMember(resource.data.projectId) || hasValidAuditToken(resource.data.projectId, request.query.auditToken);
+      allow read: if isProjectMember(resource.data.projectId);
       allow create: if canWrite(request.resource.data.projectId) && isValidBoard(request.resource.data) &&
                     request.resource.data.ownerId == request.auth.uid;
       allow update: if canWrite(resource.data.projectId) && isValidBoard(request.resource.data) &&
@@ -331,7 +335,7 @@ service cloud.firestore {
       );
     }
     match /tasks/{taskId} {
-      allow read: if isProjectMember(resource.data.projectId) || hasValidAuditToken(resource.data.projectId, request.query.auditToken);
+      allow read: if isProjectMember(resource.data.projectId);
       allow create: if canWrite(request.resource.data.projectId) && isValidTask(request.resource.data) &&
                     request.resource.data.ownerId == request.auth.uid;
       allow update: if canWrite(resource.data.projectId) && isValidTask(request.resource.data) &&
@@ -434,7 +438,7 @@ service cloud.firestore {
 
     // FINANCE RULES
     match /transactions/{transactionId} {
-      allow read: if isProjectMember(resource.data.projectId) || isAdmin() || hasValidAuditToken(resource.data.projectId, request.query.auditToken);
+      allow read: if isProjectMember(resource.data.projectId) || isAdmin();
       allow create: if (canWrite(request.resource.data.projectId) || isAdmin()) && isValidTransaction(request.resource.data);
       allow update: if (canWrite(resource.data.projectId) || isAdmin()) && isValidTransaction(request.resource.data) &&
                     areImmutableFieldsUnchanged(['projectId', 'createdAt']);
@@ -442,7 +446,7 @@ service cloud.firestore {
     }
 
     match /budgets/{budgetId} {
-      allow read: if isProjectMember(resource.data.projectId) || isAdmin() || hasValidAuditToken(resource.data.projectId, request.query.auditToken);
+      allow read: if isProjectMember(resource.data.projectId) || isAdmin();
       allow create: if (canWrite(request.resource.data.projectId) || isAdmin()) && isValidBudget(request.resource.data);
       allow update: if (canWrite(resource.data.projectId) || isAdmin()) && isValidBudget(request.resource.data) &&
                     areImmutableFieldsUnchanged(['projectId', 'createdAt']);

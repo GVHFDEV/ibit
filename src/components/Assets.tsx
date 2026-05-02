@@ -292,7 +292,35 @@ export default function Assets() {
 
     console.log('Destination droppableId:', destination.droppableId);
 
-    // Only handle dropping into folders (not main-area)
+    // Handle dropping into back button (move to parent folder)
+    if (destination.droppableId === 'back-button') {
+      const currentFolder = folders.find(f => f.id === currentFolderId);
+      const targetFolderId = currentFolder?.parentId || null;
+      console.log('Dropping into back button, moving to parent:', targetFolderId);
+
+      const isLink = filteredLinks.some(link => link.id === draggableId);
+      const isDocument = filteredDocuments.some(doc => doc.id === draggableId);
+
+      try {
+        if (isLink) {
+          await updateDoc(doc(db, 'assetLinks', draggableId), {
+            folderId: targetFolderId,
+            updatedAt: serverTimestamp()
+          });
+        } else if (isDocument) {
+          await updateDoc(doc(db, 'assetDocuments', draggableId), {
+            folderId: targetFolderId,
+            updatedAt: serverTimestamp()
+          });
+        }
+      } catch (error) {
+        console.error('Error updating item:', error);
+        handleFirestoreError(error, OperationType.UPDATE, `asset/${draggableId}`);
+      }
+      return;
+    }
+
+    // Handle dropping into folders
     if (destination.droppableId.startsWith('folder-')) {
       const targetFolderId = destination.droppableId.replace('folder-', '');
       console.log('Dropping into folder:', targetFolderId);
@@ -502,28 +530,43 @@ export default function Assets() {
             </div>
           ) : (
             <DragDropContext onDragEnd={onDragEnd}>
-              <Droppable droppableId="main-area" type="MAIN">
-                {(provided) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6"
-                  >
-                    {/* Back to Home folder if nested */}
-                    {currentFolderId && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                {/* Back to Home folder if nested - Now a Droppable */}
+                {currentFolderId && (
+                  <Droppable droppableId="back-button" type="ASSET">
+                    {(provided, snapshot) => (
                       <div
-                        onClick={() => {
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        onClick={() => !snapshot.isDraggingOver && (() => {
                           const current = folders.find(f => f.id === currentFolderId);
                           setCurrentFolderId(current?.parentId || null);
-                        }}
-                        className="group bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#ff7f00] hover:shadow-xl transition-all relative"
+                        })()}
+                        className={clsx(
+                          "group bg-white rounded-2xl border p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all relative min-h-[150px]",
+                          snapshot.isDraggingOver
+                            ? "border-[#ff7f00] border-2 border-dashed bg-orange-50"
+                            : "border-gray-200 hover:border-[#ff7f00] hover:shadow-xl"
+                        )}
                       >
-                        <ArrowLeft className="w-12 h-12 text-gray-200 group-hover:text-[#ff7f00] transition-colors" />
-                        <span className="text-xs font-bold text-gray-400 uppercase tracking-widest text-center transition-colors group-hover:text-gray-900 line-clamp-2">VOLTAR</span>
+                        {snapshot.isDraggingOver ? (
+                          <>
+                            <ArrowLeft className="w-12 h-12 text-[#ff7f00]" />
+                            <span className="text-xs font-bold text-[#ff7f00] uppercase tracking-widest text-center">Mover para cima</span>
+                          </>
+                        ) : (
+                          <>
+                            <ArrowLeft className="w-12 h-12 text-gray-200 group-hover:text-[#ff7f00] transition-colors" />
+                            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest text-center transition-colors group-hover:text-gray-900 line-clamp-2">VOLTAR</span>
+                          </>
+                        )}
+                        <div className="hidden">{provided.placeholder}</div>
                       </div>
                     )}
+                  </Droppable>
+                )}
 
-              {/* Folders List */}
+              {/* Folders List - Each folder is a Droppable */}
               {filteredFolders.map((folder, index) => (
                 <Droppable key={folder.id} droppableId={`folder-${folder.id}`} type="ASSET">
                   {(provided, snapshot) => {
@@ -534,8 +577,10 @@ export default function Assets() {
                       {...provided.droppableProps}
                       onClick={() => !snapshot.isDraggingOver && setCurrentFolderId(folder.id)}
                       className={clsx(
-                        "group bg-white rounded-2xl border p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:shadow-xl transition-all relative min-h-[150px]",
-                        snapshot.isDraggingOver ? "border-[#ff7f00] bg-orange-50 border-2" : "border-gray-200 hover:border-[#ff7f00]"
+                        "group bg-white rounded-2xl border p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all relative min-h-[150px]",
+                        snapshot.isDraggingOver
+                          ? "border-[#ff7f00] bg-orange-50 border-2 border-dashed"
+                          : "border-gray-200 hover:border-[#ff7f00] hover:shadow-xl"
                       )}
                     >
                       <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
@@ -572,17 +617,21 @@ export default function Assets() {
                         </>
                       )}
 
-                      {provided.placeholder}
+                      <div className="hidden">{provided.placeholder}</div>
                     </div>
                     );
                   }}
                 </Droppable>
               ))}
 
-              {/* Links List */}
-              {filteredLinks.map((link, index) => (
-                <Draggable key={link.id} draggableId={link.id} index={index} type="ASSET">
-                  {(provided, snapshot) => (
+              {/* Droppable wrapper for loose items (links and documents) */}
+              <Droppable droppableId="loose-items" type="ASSET">
+                {(provided) => (
+                  <div ref={provided.innerRef} {...provided.droppableProps} className="contents">
+                    {/* Links List */}
+                    {filteredLinks.map((link, index) => (
+                      <Draggable key={link.id} draggableId={link.id} index={index} type="ASSET">
+                        {(provided, snapshot) => (
                     <div
                       ref={provided.innerRef}
                       {...provided.draggableProps}
@@ -674,11 +723,13 @@ export default function Assets() {
                   <p className="font-bold uppercase tracking-widest text-[10px]">Nenhum ativo encontrado nesta view</p>
                 </div>
               )}
+
               {provided.placeholder}
                   </div>
                 )}
               </Droppable>
-            </DragDropContext>
+            </div>
+          </DragDropContext>
           )}
         </div>
       </main>

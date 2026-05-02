@@ -19,6 +19,7 @@ import RACIMatrix from './components/RACIMatrix';
 import GanttChart from './components/GanttChart';
 import ProjectFinance from './components/ProjectFinance';
 import ProjectMembers from './components/ProjectMembers';
+import PublicAudit from './components/PublicAudit';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -41,13 +42,15 @@ export default function App() {
         <Router>
           <Routes>
             <Route path="/" element={<Login />} />
-            <Route 
-              path="/dashboard" 
+            {/* Public Route - NO authentication required */}
+            <Route path="/audit/:token" element={<PublicAudit />} />
+            <Route
+              path="/dashboard"
               element={
                 <PrivateRoute>
                   <Dashboard />
                 </PrivateRoute>
-              } 
+              }
             />
             <Route 
               path="/project/:projectId" 
