@@ -20,6 +20,9 @@ export interface Project {
   createdAt: any; // Firestore Timestamp
   updatedAt?: any; // Added for traceability
   ganttStartDate?: any; // Start date of Gantt Chart timeline
+  targetEventName?: string; // Countdown KPI: event name
+  targetDate?: any; // Countdown KPI: target date (Firestore Timestamp)
+  auditToken?: string; // Public Audit: unique token for public read-only access (optional for backward compatibility)
 }
 
 export interface Board {
