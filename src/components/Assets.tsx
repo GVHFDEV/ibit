@@ -508,18 +508,18 @@ export default function Assets() {
 
               {/* Folders List */}
               {filteredFolders.map((folder, index) => (
-                <Droppable key={folder.id} droppableId={`folder-${folder.id}`}>
+                <Droppable key={folder.id} droppableId={`folder-${folder.id}`} type="ASSET">
                   {(provided, snapshot) => (
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      onClick={() => setCurrentFolderId(folder.id)}
+                      onClick={() => !snapshot.isDraggingOver && setCurrentFolderId(folder.id)}
                       className={clsx(
-                        "group bg-white rounded-2xl border p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:shadow-xl transition-all relative",
-                        snapshot.isDraggingOver ? "border-[#ff7f00] bg-orange-50" : "border-gray-200 hover:border-[#ff7f00]"
+                        "group bg-white rounded-2xl border p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:shadow-xl transition-all relative min-h-[150px]",
+                        snapshot.isDraggingOver ? "border-[#ff7f00] bg-orange-50 border-2" : "border-gray-200 hover:border-[#ff7f00]"
                       )}
                     >
-                      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -540,14 +540,20 @@ export default function Assets() {
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                      <Folder className="w-16 h-16 text-[#ff7f00] fill-[#ff7f00]/5 group-hover:scale-110 transition-transform" />
-                      <span className="text-sm font-bold text-gray-900 uppercase tracking-wider text-center line-clamp-2">{folder.name}</span>
-                      {snapshot.isDraggingOver && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-orange-50/80 rounded-2xl">
-                          <span className="text-xs font-bold text-[#ff7f00] uppercase tracking-wider">Soltar aqui</span>
+
+                      {snapshot.isDraggingOver ? (
+                        <div className="flex flex-col items-center justify-center gap-3">
+                          <Folder className="w-16 h-16 text-[#ff7f00] fill-[#ff7f00]/20" />
+                          <span className="text-sm font-bold text-[#ff7f00] uppercase tracking-wider text-center">Soltar aqui</span>
                         </div>
+                      ) : (
+                        <>
+                          <Folder className="w-16 h-16 text-[#ff7f00] fill-[#ff7f00]/5 group-hover:scale-110 transition-transform" />
+                          <span className="text-sm font-bold text-gray-900 uppercase tracking-wider text-center line-clamp-2">{folder.name}</span>
+                        </>
                       )}
-                      <div style={{ display: 'none' }}>{provided.placeholder}</div>
+
+                      {provided.placeholder}
                     </div>
                   )}
                 </Droppable>
@@ -555,7 +561,7 @@ export default function Assets() {
 
               {/* Links List */}
               {filteredLinks.map((link, index) => (
-                <Draggable key={link.id} draggableId={link.id} index={index}>
+                <Draggable key={link.id} draggableId={link.id} index={index} type="ASSET">
                   {(provided, snapshot) => (
                     <div
                       ref={provided.innerRef}
@@ -564,7 +570,7 @@ export default function Assets() {
                       onClick={() => !snapshot.isDragging && window.open(link.url, '_blank')}
                       className={clsx(
                         "group bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#ff7f00] hover:shadow-xl transition-all relative",
-                        snapshot.isDragging && "shadow-2xl rotate-3 scale-105"
+                        snapshot.isDragging && "shadow-2xl rotate-3 scale-105 opacity-80"
                       )}
                     >
                       <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col">
@@ -597,7 +603,7 @@ export default function Assets() {
 
               {/* Documents List */}
               {filteredDocuments.map((assetDoc, index) => (
-                <Draggable key={assetDoc.id} draggableId={assetDoc.id} index={index}>
+                <Draggable key={assetDoc.id} draggableId={assetDoc.id} index={index} type="ASSET">
                   {(provided, snapshot) => (
                     <div
                       ref={provided.innerRef}
@@ -606,7 +612,7 @@ export default function Assets() {
                       onClick={() => !snapshot.isDragging && setOpenDocumentId(assetDoc.id)}
                       className={clsx(
                         "group bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#ff7f00] hover:shadow-xl transition-all relative",
-                        snapshot.isDragging && "shadow-2xl rotate-3 scale-105"
+                        snapshot.isDragging && "shadow-2xl rotate-3 scale-105 opacity-80"
                       )}
                     >
                       <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col">
