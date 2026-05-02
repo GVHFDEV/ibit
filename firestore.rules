@@ -30,6 +30,39 @@ service cloud.firestore {
         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
           (request.auth.token.email == "vhfgustavo@gmail.com" && request.auth.token.email_verified == true));
     }
+
+    // ===============================================================
+    // RBAC Helper Functions
+    // ===============================================================
+
+    // Get user's role in a project (with legacy fallback)
+    function getProjectRole(projectId, uid) {
+      let project = get(/databases/$(database)/documents/projects/$(projectId)).data;
+      // If roles map exists and has this user, return their role
+      if ('roles' in project && uid in project.roles) {
+        return project.roles[uid];
+      }
+      // Legacy fallback: owner gets 'owner', members get 'editor'
+      if (project.ownerId == uid) {
+        return 'owner';
+      }
+      if (uid in project.members) {
+        return 'editor';
+      }
+      return 'viewer';
+    }
+
+    // Check if user is owner or admin
+    function isProjectAdmin(projectId) {
+      let role = getProjectRole(projectId, request.auth.uid);
+      return role == 'owner' || role == 'admin';
+    }
+
+    // Check if user can write (not a viewer)
+    function canWrite(projectId) {
+      let role = getProjectRole(projectId, request.auth.uid);
+      return role == 'owner' || role == 'admin' || role == 'editor';
+    }
     
     function isValidQuadro(data) {
       return hasOnlyAllowedFields(['projectId', 'name', 'nodes', 'edges', 'ownerId', 'createdAt', 'updatedAt']) &&
@@ -213,16 +246,17 @@ service cloud.firestore {
              data.role in ['admin', 'user'];
     }
     function isValidProject(data) {
-      return hasOnlyAllowedFields(['name', 'description', 'photoURL', 'ownerId', 'members', 'createdAt', 'updatedAt', 'shortId', 'ganttStartDate']) &&
+      return hasOnlyAllowedFields(['name', 'description', 'photoURL', 'ownerId', 'members', 'roles', 'createdAt', 'updatedAt', 'shortId', 'ganttStartDate']) &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              (!( 'description' in data ) || data.description == null || (data.description is string && data.description.size() < 1000)) &&
              (!( 'photoURL' in data ) || data.photoURL == null || (data.photoURL is string && data.photoURL.size() < 1000)) &&
              data.ownerId is string && data.ownerId.size() > 0 && data.ownerId.size() < 128 &&
              data.members is list && data.members.size() <= 100 &&
+             (!( 'roles' in data ) || data.roles is map) &&
              data.createdAt is timestamp &&
              (!( 'ganttStartDate' in data ) || data.ganttStartDate is timestamp) &&
              (!( 'updatedAt' in data ) || data.updatedAt is timestamp) &&
-             data.shortId is string && data.shortId.size() == 8; 
+             data.shortId is string && data.shortId.size() == 8;
     }
     function isValidBoard(data) {
       return hasOnlyAllowedFields(['projectId', 'name', 'order', 'color', 'ownerId', 'createdAt', 'updatedAt']) &&
@@ -262,27 +296,26 @@ service cloud.firestore {
                     (request.resource.data.role == resource.data.role || isAdmin());
     }
     match /projects/{projectId} {
-      allow read: if isAuthenticated(); 
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isValidProject(request.resource.data) &&
                     request.resource.data.ownerId == request.auth.uid &&
                     request.auth.uid in request.resource.data.members;
-      allow update: if isAuthenticated() && (
-        (request.auth.uid in resource.data.members &&
-         isValidProject(request.resource.data) &&
-         areImmutableFieldsUnchanged(['ownerId', 'createdAt', 'shortId']))
+      allow update: if isAuthenticated() && isValidProject(request.resource.data) && (
+        // Owner/Admin can update project settings
+        (isProjectAdmin(projectId) && areImmutableFieldsUnchanged(['ownerId', 'createdAt', 'shortId']))
         ||
+        // Non-members can add themselves (for invites)
         (!(request.auth.uid in resource.data.members) &&
-         isValidProject(request.resource.data) &&
-         areImmutableFieldsUnchanged(['name', 'description', 'photoURL', 'ownerId', 'createdAt', 'shortId']) &&
+         areImmutableFieldsUnchanged(['name', 'description', 'photoURL', 'ownerId', 'createdAt', 'shortId', 'roles', 'ganttStartDate']) &&
          request.auth.uid in request.resource.data.members)
       );
       allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
     }
     match /boards/{boardId} {
       allow read: if isProjectMember(resource.data.projectId);
-      allow create: if isProjectMember(request.resource.data.projectId) && isValidBoard(request.resource.data) &&
+      allow create: if canWrite(request.resource.data.projectId) && isValidBoard(request.resource.data) &&
                     request.resource.data.ownerId == request.auth.uid;
-      allow update: if isProjectMember(resource.data.projectId) && isValidBoard(request.resource.data) &&
+      allow update: if canWrite(resource.data.projectId) && isValidBoard(request.resource.data) &&
                     areImmutableFieldsUnchanged(['projectId', 'ownerId', 'createdAt']);
       allow delete: if isAuthenticated() && (
         resource.data.ownerId == request.auth.uid ||
@@ -291,9 +324,9 @@ service cloud.firestore {
     }
     match /tasks/{taskId} {
       allow read: if isProjectMember(resource.data.projectId);
-      allow create: if isProjectMember(request.resource.data.projectId) && isValidTask(request.resource.data) &&
+      allow create: if canWrite(request.resource.data.projectId) && isValidTask(request.resource.data) &&
                     request.resource.data.ownerId == request.auth.uid;
-      allow update: if isProjectMember(resource.data.projectId) && isValidTask(request.resource.data) &&
+      allow update: if canWrite(resource.data.projectId) && isValidTask(request.resource.data) &&
                     areImmutableFieldsUnchanged(['projectId', 'ownerId', 'createdAt']);
       allow delete: if isAuthenticated() && (
         resource.data.ownerId == request.auth.uid ||
@@ -302,10 +335,10 @@ service cloud.firestore {
     }
     match /quadros/{projectId} {
       allow read: if isProjectMember(projectId);
-      allow create: if isProjectMember(projectId) && 
+      allow create: if canWrite(projectId) &&
                     request.resource.data.ownerId == request.auth.uid &&
                     isValidQuadro(request.resource.data);
-      allow update: if isProjectMember(projectId) && 
+      allow update: if canWrite(projectId) &&
                     isValidQuadro(request.resource.data) &&
                     areImmutableFieldsUnchanged(['projectId', 'ownerId', 'createdAt']);
       allow delete: if isAuthenticated() && (
@@ -315,97 +348,97 @@ service cloud.firestore {
     }
     match /inventory/{itemId} {
       allow read: if isProjectMember(resource.data.projectId);
-      allow create: if isProjectMember(request.resource.data.projectId) && isValidInventoryItem(request.resource.data);
-      allow update: if isProjectMember(resource.data.projectId) && isValidInventoryItem(request.resource.data);
-      allow delete: if isProjectMember(resource.data.projectId);
+      allow create: if canWrite(request.resource.data.projectId) && isValidInventoryItem(request.resource.data);
+      allow update: if canWrite(resource.data.projectId) && isValidInventoryItem(request.resource.data);
+      allow delete: if canWrite(resource.data.projectId);
     }
     match /projectTags/{tagId} {
       allow read: if isProjectMember(resource.data.projectId);
-      allow create: if isProjectMember(request.resource.data.projectId) && isValidProjectTag(request.resource.data);
-      allow update: if isProjectMember(resource.data.projectId) && isValidProjectTag(request.resource.data) &&
+      allow create: if canWrite(request.resource.data.projectId) && isValidProjectTag(request.resource.data);
+      allow update: if canWrite(resource.data.projectId) && isValidProjectTag(request.resource.data) &&
                     areImmutableFieldsUnchanged(['projectId', 'createdAt']);
-      allow delete: if isProjectMember(resource.data.projectId);
+      allow delete: if canWrite(resource.data.projectId);
     }
     match /assetFolders/{folderId} {
       allow read: if isProjectMember(resource.data.projectId);
-      allow create: if isProjectMember(request.resource.data.projectId) && isValidAssetFolder(request.resource.data);
-      allow update: if isProjectMember(resource.data.projectId) && isValidAssetFolder(request.resource.data) &&
+      allow create: if canWrite(request.resource.data.projectId) && isValidAssetFolder(request.resource.data);
+      allow update: if canWrite(resource.data.projectId) && isValidAssetFolder(request.resource.data) &&
                     areImmutableFieldsUnchanged(['projectId', 'createdAt', 'ownerId']);
-      allow delete: if isProjectMember(resource.data.projectId);
+      allow delete: if canWrite(resource.data.projectId);
     }
     match /assetLinks/{linkId} {
       allow read: if isProjectMember(resource.data.projectId);
-      allow create: if isProjectMember(request.resource.data.projectId) && isValidAssetLink(request.resource.data);
-      allow update: if isProjectMember(resource.data.projectId) && isValidAssetLink(request.resource.data) &&
+      allow create: if canWrite(request.resource.data.projectId) && isValidAssetLink(request.resource.data);
+      allow update: if canWrite(resource.data.projectId) && isValidAssetLink(request.resource.data) &&
                     areImmutableFieldsUnchanged(['projectId', 'createdAt', 'ownerId']);
-      allow delete: if isProjectMember(resource.data.projectId);
+      allow delete: if canWrite(resource.data.projectId);
     }
     match /assetDocuments/{docId} {
       allow read: if isProjectMember(resource.data.projectId);
-      allow create: if isProjectMember(request.resource.data.projectId);
-      allow update: if isProjectMember(resource.data.projectId);
-      allow delete: if isProjectMember(resource.data.projectId);
+      allow create: if canWrite(request.resource.data.projectId);
+      allow update: if canWrite(resource.data.projectId);
+      allow delete: if canWrite(resource.data.projectId);
     }
 
     match /raciMatrices/{matrixId} {
       allow read: if isProjectMember(resource.data.projectId) || isAdmin();
-      allow create: if (isProjectMember(request.resource.data.projectId) || isAdmin()) && isValidRACIMatrix(request.resource.data);
-      allow update: if (isProjectMember(resource.data.projectId) || isAdmin()) && isValidRACIMatrix(request.resource.data) &&
+      allow create: if (canWrite(request.resource.data.projectId) || isAdmin()) && isValidRACIMatrix(request.resource.data);
+      allow update: if (canWrite(resource.data.projectId) || isAdmin()) && isValidRACIMatrix(request.resource.data) &&
                     areImmutableFieldsUnchanged(['projectId', 'createdAt', 'ownerId']);
-      allow delete: if isProjectMember(resource.data.projectId) || isAdmin();
+      allow delete: if canWrite(resource.data.projectId) || isAdmin();
     }
     match /raciTasks/{taskId} {
       allow read: if isProjectMember(resource.data.projectId) || isAdmin();
-      allow create: if (isProjectMember(request.resource.data.projectId) || isAdmin()) && isValidRACITask(request.resource.data);
-      allow update: if (isProjectMember(resource.data.projectId) || isAdmin()) && isValidRACITask(request.resource.data) &&
+      allow create: if (canWrite(request.resource.data.projectId) || isAdmin()) && isValidRACITask(request.resource.data);
+      allow update: if (canWrite(resource.data.projectId) || isAdmin()) && isValidRACITask(request.resource.data) &&
                     areImmutableFieldsUnchanged(['matrixId', 'projectId', 'createdAt']);
-      allow delete: if isProjectMember(resource.data.projectId) || isAdmin();
+      allow delete: if canWrite(resource.data.projectId) || isAdmin();
     }
     match /raciStakeholders/{stakeholderId} {
       allow read: if isProjectMember(resource.data.projectId) || isAdmin();
-      allow create: if (isProjectMember(request.resource.data.projectId) || isAdmin()) && isValidRACIStakeholder(request.resource.data);
-      allow update: if (isProjectMember(resource.data.projectId) || isAdmin()) && isValidRACIStakeholder(request.resource.data) &&
+      allow create: if (canWrite(request.resource.data.projectId) || isAdmin()) && isValidRACIStakeholder(request.resource.data);
+      allow update: if (canWrite(resource.data.projectId) || isAdmin()) && isValidRACIStakeholder(request.resource.data) &&
                     areImmutableFieldsUnchanged(['matrixId', 'projectId', 'createdAt']);
-      allow delete: if isProjectMember(resource.data.projectId) || isAdmin();
+      allow delete: if canWrite(resource.data.projectId) || isAdmin();
     }
     match /raciAssignments/{assignmentId} {
       allow read: if isProjectMember(resource.data.projectId) || isAdmin();
-      allow create, update: if (isProjectMember(request.resource.data.projectId) || isAdmin()) && isValidRACIAssignment(request.resource.data);
-      allow delete: if isProjectMember(resource.data.projectId) || isAdmin();
+      allow create, update: if (canWrite(request.resource.data.projectId) || isAdmin()) && isValidRACIAssignment(request.resource.data);
+      allow delete: if canWrite(resource.data.projectId) || isAdmin();
     }
 
     // GANTT RULES
     match /ganttTasks/{taskId} {
       allow read: if isProjectMember(resource.data.projectId) || isAdmin();
-      allow create: if (isProjectMember(request.resource.data.projectId) || isAdmin()) && isValidGanttTask(request.resource.data);
-      allow update: if (isProjectMember(resource.data.projectId) || isAdmin()) && isValidGanttTask(request.resource.data) &&
+      allow create: if (canWrite(request.resource.data.projectId) || isAdmin()) && isValidGanttTask(request.resource.data);
+      allow update: if (canWrite(resource.data.projectId) || isAdmin()) && isValidGanttTask(request.resource.data) &&
                     areImmutableFieldsUnchanged(['projectId', 'createdAt']);
-      allow delete: if isProjectMember(resource.data.projectId) || isAdmin();
+      allow delete: if canWrite(resource.data.projectId) || isAdmin();
     }
 
     match /projectStakeholders/{stakeholderId} {
       allow read: if isProjectMember(resource.data.projectId) || isAdmin();
-      allow create: if (isProjectMember(request.resource.data.projectId) || isAdmin()) && isValidProjectStakeholder(request.resource.data);
-      allow update: if (isProjectMember(resource.data.projectId) || isAdmin()) && isValidProjectStakeholder(request.resource.data) &&
+      allow create: if (canWrite(request.resource.data.projectId) || isAdmin()) && isValidProjectStakeholder(request.resource.data);
+      allow update: if (canWrite(resource.data.projectId) || isAdmin()) && isValidProjectStakeholder(request.resource.data) &&
                     areImmutableFieldsUnchanged(['projectId', 'createdAt']);
-      allow delete: if isProjectMember(resource.data.projectId) || isAdmin();
+      allow delete: if canWrite(resource.data.projectId) || isAdmin();
     }
 
     // FINANCE RULES
     match /transactions/{transactionId} {
       allow read: if isProjectMember(resource.data.projectId) || isAdmin();
-      allow create: if (isProjectMember(request.resource.data.projectId) || isAdmin()) && isValidTransaction(request.resource.data);
-      allow update: if (isProjectMember(resource.data.projectId) || isAdmin()) && isValidTransaction(request.resource.data) &&
+      allow create: if (canWrite(request.resource.data.projectId) || isAdmin()) && isValidTransaction(request.resource.data);
+      allow update: if (canWrite(resource.data.projectId) || isAdmin()) && isValidTransaction(request.resource.data) &&
                     areImmutableFieldsUnchanged(['projectId', 'createdAt']);
-      allow delete: if isProjectMember(resource.data.projectId) || isAdmin();
+      allow delete: if canWrite(resource.data.projectId) || isAdmin();
     }
 
     match /budgets/{budgetId} {
       allow read: if isProjectMember(resource.data.projectId) || isAdmin();
-      allow create: if (isProjectMember(request.resource.data.projectId) || isAdmin()) && isValidBudget(request.resource.data);
-      allow update: if (isProjectMember(resource.data.projectId) || isAdmin()) && isValidBudget(request.resource.data) &&
+      allow create: if (canWrite(request.resource.data.projectId) || isAdmin()) && isValidBudget(request.resource.data);
+      allow update: if (canWrite(resource.data.projectId) || isAdmin()) && isValidBudget(request.resource.data) &&
                     areImmutableFieldsUnchanged(['projectId', 'createdAt']);
-      allow delete: if isProjectMember(resource.data.projectId) || isAdmin();
+      allow delete: if canWrite(resource.data.projectId) || isAdmin();
     }
   }
 }

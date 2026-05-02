@@ -1,13 +1,16 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
-import { LogOut, LayoutDashboard, ArrowLeft, Kanban, Settings, Image, Calendar, Archive, Folder, User as UserIcon, Grid3X3, BarChart, ChevronLeft, ChevronRight, DollarSign } from 'lucide-react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { LogOut, LayoutDashboard, ArrowLeft, Kanban, Settings, Image, Calendar, Archive, Folder, User as UserIcon, Users, Grid3X3, BarChart, ChevronLeft, ChevronRight, DollarSign } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useSidebar } from '../contexts/SidebarContext';
 import UserProfileModal from './UserProfileModal';
 import logoIbit from '../media/ibitlogo.svg';
+import { Project } from '../types';
+import { canManageMembers } from '../utils/roleHelpers';
 
 interface SidebarProps {
   projectId?: string;
@@ -20,7 +23,19 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
   const { isCollapsed, toggleSidebar } = useSidebar();
   const navigate = useNavigate();
   const location = useLocation();
-  const [isProfileModalOpen, setIsProfileModalOpen] = React.useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [project, setProject] = useState<Project | null>(null);
+
+  // Fetch project data to check permissions
+  useEffect(() => {
+    if (!projectId || !user) return;
+    const projectRef = doc(db, 'projects', projectId);
+    return onSnapshot(projectRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setProject({ id: docSnap.id, ...docSnap.data() } as Project);
+      }
+    });
+  }, [projectId, user]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -28,6 +43,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
   };
 
   const isProjectView = !!projectId;
+  const showMembersLink = project && user && canManageMembers(project, user.uid);
 
   return (
     <aside 
@@ -197,6 +213,20 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
                 <DollarSign className="w-5 h-5 shrink-0" />
                 {!isCollapsed && <span>FINANCEIRO</span>}
               </Link>
+
+              {showMembersLink && (
+                <Link
+                  to={`/project/${projectId}/membros`}
+                  className={`flex items-center gap-3 px-4 py-3 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/membros`
+                    ? 'bg-orange-50 text-[#ff7f00]'
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                    } ${isCollapsed ? 'justify-center px-0' : ''}`}
+                  title={isCollapsed ? "MEMBROS" : ""}
+                >
+                  <Users className="w-5 h-5 shrink-0" />
+                  {!isCollapsed && <span>MEMBROS</span>}
+                </Link>
+              )}
 
               {onOpenSettings && (
                 <>

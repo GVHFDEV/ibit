@@ -6,6 +6,8 @@ import { doc, updateDoc, serverTimestamp, collection, query, where, getDocs, wri
 import { db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../utils/errorHandlers';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAuth } from '../contexts/AuthContext';
+import { getUserRole, isProjectOwner } from '../utils/roleHelpers';
 
 interface ProjectSettingsModalProps {
   project: Project;
@@ -13,21 +15,33 @@ interface ProjectSettingsModalProps {
 }
 
 export default function ProjectSettingsModal({ project, onClose }: ProjectSettingsModalProps) {
+  const { user } = useAuth();
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description || '');
   const [photoURL, setPhotoURL] = useState(project.photoURL || '');
-  
+
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
-  
+
   // Estados para Excluir Projeto
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+
+  // Check permissions
+  const userRole = user ? getUserRole(project, user.uid) : 'viewer';
+  const isOwner = user ? isProjectOwner(project, user.uid) : false;
+  const canEdit = userRole === 'owner' || userRole === 'admin';
+
+  // Redirect if user doesn't have permission
+  if (!canEdit) {
+    onClose();
+    return null;
+  }
 
   // CREDENCIAIS DO CLOUDINARY - Substitua pelos seus dados
   const CLOUDINARY_CLOUD_NAME = 'drmgydsjc';
@@ -244,15 +258,21 @@ export default function ProjectSettingsModal({ project, onClose }: ProjectSettin
           </div>
 
           <div className="pt-6 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0">
-            <button
-              type="button"
-              onClick={() => setIsDeleteModalOpen(true)}
-              className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-red-600 hover:bg-red-50 transition-colors rounded-none flex items-center gap-2 w-full sm:w-auto justify-center"
-              title="Apagar Projeto"
-            >
-              <Trash2 className="w-4 h-4" />
-              Apagar Projeto
-            </button>
+            {isOwner ? (
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(true)}
+                className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-red-600 hover:bg-red-50 transition-colors rounded-none flex items-center gap-2 w-full sm:w-auto justify-center"
+                title="Apagar Projeto"
+              >
+                <Trash2 className="w-4 h-4" />
+                Apagar Projeto
+              </button>
+            ) : (
+              <div className="text-xs text-gray-500 italic">
+                Apenas o dono pode excluir o projeto
+              </div>
+            )}
             <div className="flex justify-end gap-3 w-full sm:w-auto">
               <button
                 type="button"

@@ -6,6 +6,8 @@ export interface UserProfile {
   role: 'admin' | 'user';
 }
 
+export type ProjectRole = 'owner' | 'admin' | 'editor' | 'viewer';
+
 export interface Project {
   id: string;
   name: string;
@@ -14,6 +16,7 @@ export interface Project {
   ownerId: string;
   shortId: string;
   members: string[];
+  roles?: { [uid: string]: ProjectRole }; // RBAC: maps user UID to role
   createdAt: any; // Firestore Timestamp
   updatedAt?: any; // Added for traceability
   ganttStartDate?: any; // Start date of Gantt Chart timeline

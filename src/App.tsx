@@ -18,6 +18,7 @@ import Assets from './components/Assets';
 import RACIMatrix from './components/RACIMatrix';
 import GanttChart from './components/GanttChart';
 import ProjectFinance from './components/ProjectFinance';
+import ProjectMembers from './components/ProjectMembers';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -112,13 +113,21 @@ export default function App() {
                 </PrivateRoute>
               } 
             />
-            <Route 
-              path="/project/:projectId/finance" 
+            <Route
+              path="/project/:projectId/finance"
               element={
                 <PrivateRoute>
                   <ProjectFinance />
                 </PrivateRoute>
-              } 
+              }
+            />
+            <Route
+              path="/project/:projectId/membros"
+              element={
+                <PrivateRoute>
+                  <ProjectMembers />
+                </PrivateRoute>
+              }
             />
           </Routes>
         </Router>
