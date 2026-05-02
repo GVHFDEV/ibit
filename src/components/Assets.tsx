@@ -282,32 +282,49 @@ export default function Assets() {
   const onDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId } = result;
 
+    console.log('onDragEnd called:', { destination, source, draggableId });
+
     // Dropped outside a valid droppable
-    if (!destination) return;
+    if (!destination) {
+      console.log('No destination - dropped outside');
+      return;
+    }
+
+    console.log('Destination droppableId:', destination.droppableId);
 
     // Only handle dropping into folders (not main-area)
     if (destination.droppableId.startsWith('folder-')) {
       const targetFolderId = destination.droppableId.replace('folder-', '');
+      console.log('Dropping into folder:', targetFolderId);
 
       // Determine if it's a link or document by checking which array contains it
       const isLink = filteredLinks.some(link => link.id === draggableId);
       const isDocument = filteredDocuments.some(doc => doc.id === draggableId);
 
+      console.log('Item type:', { isLink, isDocument, draggableId });
+
       try {
         if (isLink) {
+          console.log('Updating link folderId to:', targetFolderId);
           await updateDoc(doc(db, 'assetLinks', draggableId), {
             folderId: targetFolderId,
             updatedAt: serverTimestamp()
           });
+          console.log('Link updated successfully');
         } else if (isDocument) {
+          console.log('Updating document folderId to:', targetFolderId);
           await updateDoc(doc(db, 'assetDocuments', draggableId), {
             folderId: targetFolderId,
             updatedAt: serverTimestamp()
           });
+          console.log('Document updated successfully');
         }
       } catch (error) {
+        console.error('Error updating item:', error);
         handleFirestoreError(error, OperationType.UPDATE, `asset/${draggableId}`);
       }
+    } else {
+      console.log('Not dropped into a folder, droppableId:', destination.droppableId);
     }
   };
 
@@ -509,7 +526,9 @@ export default function Assets() {
               {/* Folders List */}
               {filteredFolders.map((folder, index) => (
                 <Droppable key={folder.id} droppableId={`folder-${folder.id}`} type="ASSET">
-                  {(provided, snapshot) => (
+                  {(provided, snapshot) => {
+                    console.log(`Folder ${folder.name} isDraggingOver:`, snapshot.isDraggingOver);
+                    return (
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
@@ -555,7 +574,8 @@ export default function Assets() {
 
                       {provided.placeholder}
                     </div>
-                  )}
+                    );
+                  }}
                 </Droppable>
               ))}
 
