@@ -7,6 +7,7 @@ import { Project, UserProfile, ProjectTag, ProjectRole } from '../types';
 import { getUserRole, canManageMembers, canRemoveMember, canChangeRole, getRoleLabel, getRoleColor, isProjectOwner } from '../utils/roleHelpers';
 import { changeMemberRole, removeMember, transferOwnership } from '../utils/memberManagement';
 import Sidebar from './Sidebar';
+import ProjectSettingsModal from './ProjectSettingsModal';
 import { Trash2, Tag, Crown, AlertTriangle, X, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -24,6 +25,7 @@ export default function ProjectMembers() {
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [selectedNewOwner, setSelectedNewOwner] = useState<string>('');
   const [isTransferring, setIsTransferring] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   // Fetch project
   useEffect(() => {
@@ -142,7 +144,11 @@ export default function ProjectMembers() {
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] text-gray-900 flex h-screen">
-      <Sidebar projectId={projectId} projectName={project.name} />
+      <Sidebar
+        projectId={projectId}
+        projectName={project.name}
+        onOpenSettings={canManage ? () => setIsSettingsModalOpen(true) : undefined}
+      />
 
       <div className="flex-1 flex flex-col h-screen overflow-hidden min-w-0">
         {/* Header */}
@@ -376,6 +382,14 @@ export default function ProjectMembers() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Project Settings Modal */}
+      {isSettingsModalOpen && project && (
+        <ProjectSettingsModal
+          project={project}
+          onClose={() => setIsSettingsModalOpen(false)}
+        />
+      )}
     </div>
   );
 }
