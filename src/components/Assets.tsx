@@ -280,34 +280,33 @@ export default function Assets() {
   };
 
   const onDragEnd = async (result: DropResult) => {
-    const { destination, source, draggableId, type } = result;
+    const { destination, source, draggableId } = result;
 
     // Dropped outside a valid droppable
     if (!destination) return;
 
-    // Dropped in the same position
-    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
-
-    // Only handle dropping into folders
+    // Only handle dropping into folders (not main-area)
     if (destination.droppableId.startsWith('folder-')) {
       const targetFolderId = destination.droppableId.replace('folder-', '');
-      const itemType = type; // 'link' or 'document'
-      const itemId = draggableId;
+
+      // Determine if it's a link or document by checking which array contains it
+      const isLink = filteredLinks.some(link => link.id === draggableId);
+      const isDocument = filteredDocuments.some(doc => doc.id === draggableId);
 
       try {
-        if (itemType === 'link') {
-          await updateDoc(doc(db, 'assetLinks', itemId), {
+        if (isLink) {
+          await updateDoc(doc(db, 'assetLinks', draggableId), {
             folderId: targetFolderId,
             updatedAt: serverTimestamp()
           });
-        } else if (itemType === 'document') {
-          await updateDoc(doc(db, 'assetDocuments', itemId), {
+        } else if (isDocument) {
+          await updateDoc(doc(db, 'assetDocuments', draggableId), {
             folderId: targetFolderId,
             updatedAt: serverTimestamp()
           });
         }
       } catch (error) {
-        handleFirestoreError(error, OperationType.UPDATE, `${itemType}s/${itemId}`);
+        handleFirestoreError(error, OperationType.UPDATE, `asset/${draggableId}`);
       }
     }
   };
@@ -556,7 +555,7 @@ export default function Assets() {
 
               {/* Links List */}
               {filteredLinks.map((link, index) => (
-                <Draggable key={link.id} draggableId={link.id} index={index} type="link">
+                <Draggable key={link.id} draggableId={link.id} index={index}>
                   {(provided, snapshot) => (
                     <div
                       ref={provided.innerRef}
@@ -598,7 +597,7 @@ export default function Assets() {
 
               {/* Documents List */}
               {filteredDocuments.map((assetDoc, index) => (
-                <Draggable key={assetDoc.id} draggableId={assetDoc.id} index={index} type="document">
+                <Draggable key={assetDoc.id} draggableId={assetDoc.id} index={index}>
                   {(provided, snapshot) => (
                     <div
                       ref={provided.innerRef}
