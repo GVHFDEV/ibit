@@ -70,6 +70,7 @@ export function canRemoveMember(project: Project, actorUid: string, targetUid: s
  * - Only owner/admin can change roles
  * - Cannot change owner's role
  * - Admin cannot promote someone to owner
+ * - Admin cannot change their own role (only owner can)
  */
 export function canChangeRole(project: Project, actorUid: string, targetUid: string, newRole: ProjectRole): boolean {
   const actorRole = getUserRole(project, actorUid);
@@ -87,6 +88,11 @@ export function canChangeRole(project: Project, actorUid: string, targetUid: str
 
   // Only owner can promote to owner (via transfer ownership)
   if (newRole === 'owner') {
+    return false;
+  }
+
+  // Admin cannot change their own role (only owner can)
+  if (actorRole === 'admin' && actorUid === targetUid) {
     return false;
   }
 

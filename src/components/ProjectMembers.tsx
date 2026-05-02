@@ -183,7 +183,7 @@ export default function ProjectMembers() {
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-5xl mx-auto space-y-6">
+          <div className="max-w-5xl mx-auto space-y-6 mt-8">
             {/* Title */}
             <div>
               <h1 className="text-2xl font-bold tracking-wider uppercase text-gray-900">Gestão de Membros</h1>

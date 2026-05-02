@@ -293,8 +293,15 @@ service cloud.firestore {
                     request.resource.data.ownerId == request.auth.uid &&
                     request.auth.uid in request.resource.data.members;
       allow update: if isAuthenticated() && isValidProject(request.resource.data) && (
-        // Owner/Admin can update project settings
+        // Owner/Admin can update project settings (except ownerId)
         (isProjectAdmin(projectId) && areImmutableFieldsUnchanged(['ownerId', 'createdAt', 'shortId']))
+        ||
+        // Owner can transfer ownership (ownerId changes, but must update roles map)
+        (resource.data.ownerId == request.auth.uid &&
+         areImmutableFieldsUnchanged(['createdAt', 'shortId']) &&
+         'roles' in request.resource.data &&
+         request.resource.data.roles[request.resource.data.ownerId] == 'owner' &&
+         request.resource.data.roles[request.auth.uid] == 'admin')
         ||
         // Non-members can add themselves (for invites)
         (!(request.auth.uid in resource.data.members) &&

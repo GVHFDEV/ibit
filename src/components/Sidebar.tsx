@@ -214,21 +214,8 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
                 {!isCollapsed && <span>FINANCEIRO</span>}
               </Link>
 
-              {showMembersLink && (
-                <Link
-                  to={`/project/${projectId}/membros`}
-                  className={`flex items-center gap-3 px-4 py-3 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/membros`
-                    ? 'bg-orange-50 text-[#ff7f00]'
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-                    } ${isCollapsed ? 'justify-center px-0' : ''}`}
-                  title={isCollapsed ? "MEMBROS" : ""}
-                >
-                  <Users className="w-5 h-5 shrink-0" />
-                  {!isCollapsed && <span>MEMBROS</span>}
-                </Link>
-              )}
-
-              {onOpenSettings && (
+              {/* Seção Configurações */}
+              {(onOpenSettings || showMembersLink) && (
                 <>
                   <div className={`h-px bg-gray-200 mx-4 transition-all duration-300 ${isCollapsed ? 'my-0.5' : 'my-4'}`} />
                   {!isCollapsed && (
@@ -236,14 +223,31 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
                       CONFIGURAÇÕES
                     </div>
                   )}
-                  <button
-                    onClick={onOpenSettings}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-[#ff7f00] hover:bg-orange-50 font-bold tracking-wider text-sm rounded-lg transition-colors text-left ${isCollapsed ? 'justify-center px-0' : ''}`}
-                    title={isCollapsed ? "PERSONALIZAR" : ""}
-                  >
-                    <Settings className="w-5 h-5 shrink-0" />
-                    {!isCollapsed && <span>PERSONALIZAR</span>}
-                  </button>
+
+                  {onOpenSettings && (
+                    <button
+                      onClick={onOpenSettings}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-[#ff7f00] hover:bg-orange-50 font-bold tracking-wider text-sm rounded-lg transition-colors text-left ${isCollapsed ? 'justify-center px-0' : ''}`}
+                      title={isCollapsed ? "PERSONALIZAR" : ""}
+                    >
+                      <Settings className="w-5 h-5 shrink-0" />
+                      {!isCollapsed && <span>PERSONALIZAR</span>}
+                    </button>
+                  )}
+
+                  {showMembersLink && (
+                    <Link
+                      to={`/project/${projectId}/membros`}
+                      className={`flex items-center gap-3 px-4 py-3 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/membros`
+                        ? 'bg-orange-50 text-[#ff7f00]'
+                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                        } ${isCollapsed ? 'justify-center px-0' : ''}`}
+                      title={isCollapsed ? "MEMBROS" : ""}
+                    >
+                      <Users className="w-5 h-5 shrink-0" />
+                      {!isCollapsed && <span>MEMBROS</span>}
+                    </Link>
+                  )}
                 </>
               )}
             </>
