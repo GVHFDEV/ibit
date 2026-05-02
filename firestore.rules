@@ -39,17 +39,9 @@ service cloud.firestore {
     function getProjectRole(projectId, uid) {
       let project = get(/databases/$(database)/documents/projects/$(projectId)).data;
       // If roles map exists and has this user, return their role
-      if ('roles' in project && uid in project.roles) {
-        return project.roles[uid];
-      }
-      // Legacy fallback: owner gets 'owner', members get 'editor'
-      if (project.ownerId == uid) {
-        return 'owner';
-      }
-      if (uid in project.members) {
-        return 'editor';
-      }
-      return 'viewer';
+      return ('roles' in project && uid in project.roles) ? project.roles[uid] :
+             (project.ownerId == uid) ? 'owner' :
+             (uid in project.members) ? 'editor' : 'viewer';
     }
 
     // Check if user is owner or admin
