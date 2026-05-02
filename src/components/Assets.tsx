@@ -7,27 +7,28 @@ import MobileToolsDrawer from './MobileToolsDrawer';
 import UserProfileModal from './UserProfileModal';
 import DocumentEditor from './DocumentEditor';
 import { db } from '../firebase';
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  doc, 
-  documentId, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  doc,
+  documentId,
+  addDoc,
+  updateDoc,
+  deleteDoc,
   serverTimestamp,
-  orderBy
+  orderBy,
+  writeBatch
 } from 'firebase/firestore';
 import { AssetFolder, AssetLink, AssetDocument, Project, UserProfile } from '../types';
-import { 
-  Plus, 
-  Search, 
-  Folder, 
-  ExternalLink, 
-  Trash2, 
-  Edit2, 
+import {
+  Plus,
+  Search,
+  Folder,
+  ExternalLink,
+  Trash2,
+  Edit2,
   ChevronRight,
   MoreVertical,
   X,
@@ -44,6 +45,7 @@ import { useAuth } from '../contexts/AuthContext';
 import ProjectSettingsModal from './ProjectSettingsModal';
 import { handleFirestoreError, OperationType } from '../utils/errorHandlers';
 import { motion, AnimatePresence } from 'motion/react';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 export default function Assets() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -277,6 +279,39 @@ export default function Assets() {
     return crumbs;
   };
 
+  const onDragEnd = async (result: DropResult) => {
+    const { destination, source, draggableId, type } = result;
+
+    // Dropped outside a valid droppable
+    if (!destination) return;
+
+    // Dropped in the same position
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+
+    // Only handle dropping into folders
+    if (destination.droppableId.startsWith('folder-')) {
+      const targetFolderId = destination.droppableId.replace('folder-', '');
+      const itemType = type; // 'link' or 'document'
+      const itemId = draggableId;
+
+      try {
+        if (itemType === 'link') {
+          await updateDoc(doc(db, 'assetLinks', itemId), {
+            folderId: targetFolderId,
+            updatedAt: serverTimestamp()
+          });
+        } else if (itemType === 'document') {
+          await updateDoc(doc(db, 'assetDocuments', itemId), {
+            folderId: targetFolderId,
+            updatedAt: serverTimestamp()
+          });
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `${itemType}s/${itemId}`);
+      }
+    }
+  };
+
   if (loading || !project) {
     return (
       <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">
@@ -450,7 +485,8 @@ export default function Assets() {
               <p className="font-bold uppercase tracking-widest text-xs">Carregando seus ativos...</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+            <DragDropContext onDragEnd={onDragEnd}>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
               {/* Back to Home folder if nested */}
               {currentFolderId && (
                 <div 
@@ -466,113 +502,139 @@ export default function Assets() {
               )}
 
               {/* Folders List */}
-              {filteredFolders.map(folder => (
-                <div 
-                  key={folder.id}
-                  onClick={() => setCurrentFolderId(folder.id)}
-                  className="group bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#ff7f00] hover:shadow-xl transition-all relative"
-                >
-                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingFolder(folder);
-                        setIsFolderModalOpen(true);
-                      }}
-                      className="p-1.5 hover:bg-orange-50 text-gray-400 hover:text-[#ff7f00] rounded-lg"
+              {filteredFolders.map((folder, index) => (
+                <Droppable key={folder.id} droppableId={`folder-${folder.id}`}>
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      onClick={() => setCurrentFolderId(folder.id)}
+                      className={clsx(
+                        "group bg-white rounded-2xl border p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:shadow-xl transition-all relative",
+                        snapshot.isDraggingOver ? "border-[#ff7f00] bg-orange-50" : "border-gray-200 hover:border-[#ff7f00]"
+                      )}
                     >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setItemToDelete({ id: folder.id, type: 'folder', name: folder.name });
-                      }}
-                      className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <Folder className="w-16 h-16 text-[#ff7f00] fill-[#ff7f00]/5 group-hover:scale-110 transition-transform" />
-                  <span className="text-sm font-bold text-gray-900 uppercase tracking-wider text-center line-clamp-2">{folder.name}</span>
-                </div>
+                      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingFolder(folder);
+                            setIsFolderModalOpen(true);
+                          }}
+                          className="p-1.5 hover:bg-orange-50 text-gray-400 hover:text-[#ff7f00] rounded-lg"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setItemToDelete({ id: folder.id, type: 'folder', name: folder.name });
+                          }}
+                          className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <Folder className="w-16 h-16 text-[#ff7f00] fill-[#ff7f00]/5 group-hover:scale-110 transition-transform" />
+                      <span className="text-sm font-bold text-gray-900 uppercase tracking-wider text-center line-clamp-2">{folder.name}</span>
+                      {snapshot.isDraggingOver && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-orange-50/80 rounded-2xl">
+                          <span className="text-xs font-bold text-[#ff7f00] uppercase tracking-wider">Soltar aqui</span>
+                        </div>
+                      )}
+                      <div style={{ display: 'none' }}>{provided.placeholder}</div>
+                    </div>
+                  )}
+                </Droppable>
               ))}
 
               {/* Links List */}
-              {filteredLinks.map(link => (
-                <div 
-                  key={link.id}
-                  onClick={() => window.open(link.url, '_blank')}
-                  className="group bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#ff7f00] hover:shadow-xl transition-all relative"
-                >
-                   <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingLink(link);
-                        setIsLinkModalOpen(true);
-                      }}
-                      className="p-1.5 hover:bg-orange-50 text-gray-400 hover:text-[#ff7f00] rounded-lg"
+              {filteredLinks.map((link, index) => (
+                <Draggable key={link.id} draggableId={link.id} index={index} type="link">
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.draggableProps}
+                      {...provided.dragHandleProps}
+                      onClick={() => !snapshot.isDragging && window.open(link.url, '_blank')}
+                      className={clsx(
+                        "group bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#ff7f00] hover:shadow-xl transition-all relative",
+                        snapshot.isDragging && "shadow-2xl rotate-3 scale-105"
+                      )}
                     >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setItemToDelete({ id: link.id, type: 'link', name: link.name });
-                      }}
-                      className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  
-                  <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <ExternalLink className="w-8 h-8 text-blue-500" />
-                  </div>
-                  <div className="flex flex-col items-center gap-1 overflow-hidden w-full">
-                    <span className="text-sm font-bold text-gray-900 uppercase tracking-wider text-center line-clamp-2">{link.name}</span>
-                    <span className="text-[10px] text-gray-400 truncate w-full text-center">{new URL(link.url).hostname}</span>
-                  </div>
-                </div>
+                      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingLink(link);
+                            setIsLinkModalOpen(true);
+                          }}
+                          className="p-1.5 hover:bg-orange-50 text-gray-400 hover:text-[#ff7f00] rounded-lg"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setItemToDelete({ id: link.id, type: 'link', name: link.name });
+                          }}
+                          className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <ExternalLink className="w-12 h-12 text-blue-500 group-hover:scale-110 transition-transform" />
+                      <span className="text-xs font-bold text-gray-900 uppercase tracking-wider text-center line-clamp-2">{link.name}</span>
+                    </div>
+                  )}
+                </Draggable>
               ))}
 
               {/* Documents List */}
-              {filteredDocuments.map(assetDoc => (
-                <div 
-                  key={assetDoc.id}
-                  onClick={() => setOpenDocumentId(assetDoc.id)}
-                  className="group bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#ff7f00] hover:shadow-xl transition-all relative"
-                >
-                   <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenDocumentId(assetDoc.id);
-                      }}
-                      className="p-1.5 hover:bg-orange-50 text-gray-400 hover:text-[#ff7f00] rounded-lg"
+              {filteredDocuments.map((assetDoc, index) => (
+                <Draggable key={assetDoc.id} draggableId={assetDoc.id} index={index} type="document">
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.draggableProps}
+                      {...provided.dragHandleProps}
+                      onClick={() => !snapshot.isDragging && setOpenDocumentId(assetDoc.id)}
+                      className={clsx(
+                        "group bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#ff7f00] hover:shadow-xl transition-all relative",
+                        snapshot.isDragging && "shadow-2xl rotate-3 scale-105"
+                      )}
                     >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setItemToDelete({ id: assetDoc.id, type: 'document', name: assetDoc.title });
-                      }}
-                      className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  
-                  <div className="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <FileText className="w-8 h-8 text-[#ff7f00]" />
-                  </div>
-                  <div className="flex flex-col items-center gap-1 overflow-hidden w-full">
-                    <span className="text-sm font-bold text-gray-900 uppercase tracking-wider text-center line-clamp-2">{assetDoc.title}</span>
-                    <span className="text-[10px] text-gray-400">Documento</span>
-                  </div>
-                </div>
+                      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenDocumentId(assetDoc.id);
+                          }}
+                          className="p-1.5 hover:bg-orange-50 text-gray-400 hover:text-[#ff7f00] rounded-lg"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setItemToDelete({ id: assetDoc.id, type: 'document', name: assetDoc.title });
+                          }}
+                          className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <FileText className="w-8 h-8 text-[#ff7f00]" />
+                      </div>
+                      <div className="flex flex-col items-center gap-1 overflow-hidden w-full">
+                        <span className="text-sm font-bold text-gray-900 uppercase tracking-wider text-center line-clamp-2">{assetDoc.title}</span>
+                        <span className="text-[10px] text-gray-400">Documento</span>
+                      </div>
+                    </div>
+                  )}
+                </Draggable>
               ))}
 
               {filteredFolders.length === 0 && filteredLinks.length === 0 && filteredDocuments.length === 0 && (
@@ -582,6 +644,7 @@ export default function Assets() {
                 </div>
               )}
             </div>
+            </DragDropContext>
           )}
         </div>
       </main>
