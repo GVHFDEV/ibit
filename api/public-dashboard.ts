@@ -1,13 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import * as admin from 'firebase-admin';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getFirestore, FieldPath } from 'firebase-admin/firestore';
 
 // Initialize Firebase Admin
-if (!admin.apps.length) {
+if (!getApps().length) {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
-  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+  initializeApp({ credential: cert(serviceAccount) });
 }
 
-const db = admin.firestore();
+const db = getFirestore();
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const token = req.query.token as string;
@@ -41,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Only fetch users if there are members
     if (projectData.members && projectData.members.length > 0) {
-      promises.push(db.collection('users').where(admin.firestore.FieldPath.documentId(), 'in', projectData.members.slice(0, 30)).get());
+      promises.push(db.collection('users').where(FieldPath.documentId(), 'in', projectData.members.slice(0, 30)).get());
     } else {
       promises.push(Promise.resolve({ docs: [] }));
     }
