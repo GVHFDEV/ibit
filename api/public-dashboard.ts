@@ -1,28 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-const admin = require('firebase-admin');
+import * as admin from 'firebase-admin';
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
-  try {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
-
-    console.log('[Firebase Admin Init] Raw FIREBASE_SERVICE_ACCOUNT length:', process.env.FIREBASE_SERVICE_ACCOUNT?.length);
-    console.log('[Firebase Admin Init] Parsed serviceAccount keys:', Object.keys(serviceAccount));
-    console.log('[Firebase Admin Init] serviceAccount.private_key (first 50 chars): ', serviceAccount.private_key?.substring(0, 50));
-
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      databaseURL: 'https://ai-studio-f3c49800-953a-4256-9966-e5f505300c6d.firebaseio.com'
-    });
-  } catch (parseError) {
-    console.error('Error parsing FIREBASE_SERVICE_ACCOUNT:', parseError);
-    // Re-throw or handle as a critical error to stop further execution
-    throw new Error('Failed to initialize Firebase Admin due to service account parsing error.');
-  }
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
+  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 }
 
 const db = admin.firestore();
-db.settings({ databaseId: 'ai-studio-f3c49800-953a-4256-9966-e5f505300c6d' });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const token = req.query.token as string;
