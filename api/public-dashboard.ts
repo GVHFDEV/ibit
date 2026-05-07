@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
+const admin = require('firebase-admin');
 import { getFirestore, FieldPath } from 'firebase-admin/firestore';
 
 // Initialize Firebase Admin

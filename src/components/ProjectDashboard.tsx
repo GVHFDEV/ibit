@@ -55,6 +55,36 @@ function computeMetrics(boards: Board[], tasks: Task[]) {
   return { todoCount, completedLast7Days };
 }
 
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+};
+
+const CustomizedFlowLabel = (props: any) => {
+  const { x, y, value, fill, position = 'top' } = props;
+  if (!value && value !== 0) return null;
+  // Format without cents if possible to save space
+  const formatted = new Intl.NumberFormat('pt-BR', { 
+    style: 'currency', 
+    currency: 'BRL',
+    maximumFractionDigits: 0 
+  }).format(value);
+  
+  return (
+    <text 
+      x={x} 
+      y={position === 'top' ? y - 12 : y + 20} 
+      dy={0} 
+      fill={fill} 
+      fontSize={9} 
+      fontWeight="bold" 
+      textAnchor="middle" 
+      className="drop-shadow-sm"
+    >
+      {formatted}
+    </text>
+  );
+};
+
 export default function ProjectDashboard() {
   const { projectId } = useParams<{ projectId: string }>();
   const { user } = useAuth();
@@ -260,10 +290,6 @@ export default function ProjectDashboard() {
 
   const CHART_COLORS = ['#ff7f00', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#eab308', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-  };
-
   const canEdit = project && user ? canEditProject(project, user.uid) : false;
 
   if (loading || !project) {
@@ -382,34 +408,34 @@ export default function ProjectDashboard() {
           </div>
         )}
         <main className="flex-1 flex flex-col min-h-0 overflow-y-auto mobile-pb-nav">
-          <div className="flex flex-col flex-1 min-h-0 gap-5 sm:gap-6 w-full max-w-[1920px] mx-auto px-4 py-5 sm:px-6 md:px-8 lg:px-10 xl:px-12 pb-6 sm:pb-8">
-            <div className={clsx("grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 shrink-0", isTVMode && "gap-8 sm:gap-12")}>
+          <div className="flex flex-col flex-1 min-h-0 gap-5 sm:gap-6 w-full max-w-[1920px] mx-auto px-4 py-5 sm:px-6 md:px-8 lg:px-10 xl:px-12">
+            <div className={clsx("grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 shrink-0", isTVMode && "gap-8 sm:gap-12")}>
               {/* KPI 1: Tarefas a Fazer */}
-              <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 flex items-center justify-start min-h-[112px] sm:min-h-[128px]">
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-lg bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0">
-                    <ListTodo className="w-5 h-5 sm:w-6 sm:h-6 text-[#ff7f00]" />
+              <div className="bg-white border border-gray-200 rounded-2xl p-6 sm:p-7 flex items-center justify-start min-h-[110px] sm:min-h-[140px] shadow-sm hover:shadow-md transition-all h-full">
+                <div className="flex items-center gap-4 sm:gap-5">
+                  <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0">
+                    <ListTodo className="w-5 h-5 sm:w-7 sm:h-7 text-[#ff7f00]" />
                   </div>
                   <div className="text-left min-w-0">
-                    <p className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] mb-1">
+                    <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] mb-1 truncate">
                       Tarefas a fazer
                     </p>
-                    <p className="text-2xl sm:text-3xl font-bold tabular-nums text-[#ff7f00] leading-none">{todoCount}</p>
+                    <p className="text-2xl sm:text-4xl font-bold tabular-nums text-[#ff7f00] leading-none">{todoCount}</p>
                   </div>
                 </div>
               </div>
 
               {/* KPI 2: Concluídas (7 dias) */}
-              <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 flex items-center justify-start min-h-[112px] sm:min-h-[128px]">
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-lg bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0">
-                    <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-[#ff7f00]" />
+              <div className="bg-white border border-gray-200 rounded-2xl p-6 sm:p-7 flex items-center justify-start min-h-[110px] sm:min-h-[140px] shadow-sm hover:shadow-md transition-all h-full">
+                <div className="flex items-center gap-4 sm:gap-5">
+                  <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-5 h-5 sm:w-7 sm:h-7 text-[#ff7f00]" />
                   </div>
                   <div className="text-left min-w-0">
-                    <p className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] mb-1">
+                    <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] mb-1 truncate">
                       Concluídas (7 dias)
                     </p>
-                    <p className="text-2xl sm:text-3xl font-bold tabular-nums text-[#ff7f00] leading-none">{completedLast7Days}</p>
+                    <p className="text-2xl sm:text-4xl font-bold tabular-nums text-[#ff7f00] leading-none">{completedLast7Days}</p>
                   </div>
                 </div>
               </div>
@@ -418,29 +444,29 @@ export default function ProjectDashboard() {
               <div
                 onClick={() => !isTVMode && setIsCountdownModalOpen(true)}
                 className={clsx(
-                  "bg-white border border-gray-200 rounded-xl p-4 sm:p-5 flex items-center justify-start min-h-[112px] sm:min-h-[128px]",
-                  !isTVMode && "cursor-pointer hover:border-[#ff7f00] transition-colors"
+                  "bg-white border border-gray-200 rounded-2xl p-6 sm:p-7 flex items-center justify-start min-h-[110px] sm:min-h-[140px] shadow-sm transition-all h-full",
+                  !isTVMode && "cursor-pointer hover:border-[#ff7f00] hover:shadow-md"
                 )}
               >
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-lg bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0">
-                    <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-[#ff7f00]" />
+                <div className="flex items-center gap-4 sm:gap-5">
+                  <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0">
+                    <Calendar className="w-5 h-5 sm:w-7 sm:h-7 text-[#ff7f00]" />
                   </div>
                   <div className="text-left min-w-0">
-                    <p className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] mb-1">
+                    <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] mb-1 truncate">
                       Contagem Regressiva
                     </p>
                     {daysUntil !== null ? (
                       <>
-                        <p className="text-2xl sm:text-3xl font-bold tabular-nums text-[#ff7f00] leading-none">
-                          Faltam {daysUntil} {daysUntil === 1 ? 'Dia' : 'Dias'}
+                        <p className="text-2xl sm:text-4xl font-bold tabular-nums text-[#ff7f00] leading-none">
+                          {daysUntil} {daysUntil === 1 ? 'Dia' : 'Dias'}
                         </p>
                         {project.targetEventName && (
-                          <p className="text-[9px] text-gray-500 mt-1 truncate">{project.targetEventName}</p>
+                          <p className="text-[9px] text-gray-500 mt-0.5 truncate">{project.targetEventName}</p>
                         )}
                       </>
                     ) : (
-                      <p className="text-sm font-bold text-gray-400">Configurar Evento</p>
+                      <p className="text-xs font-bold text-gray-400">Configurar Evento</p>
                     )}
                   </div>
                 </div>
@@ -450,23 +476,23 @@ export default function ProjectDashboard() {
               <div
                 onClick={() => !isTVMode && navigate(`/project/${projectId}/finance`)}
                 className={clsx(
-                  "bg-white border border-gray-200 rounded-xl p-4 sm:p-5 flex items-center justify-start min-h-[112px] sm:min-h-[128px]",
-                  !isTVMode && "cursor-pointer hover:border-[#ff7f00] transition-colors"
+                  "bg-white border border-gray-200 rounded-2xl p-6 sm:p-7 flex items-center justify-start min-h-[110px] sm:min-h-[140px] shadow-sm transition-all h-full",
+                  !isTVMode && "cursor-pointer hover:border-[#ff7f00] hover:shadow-md"
                 )}
               >
-                <div className="flex items-center gap-3 sm:gap-4">
+                <div className="flex items-center gap-4 sm:gap-5">
                   <div className={clsx(
-                    "w-11 h-11 sm:w-12 sm:h-12 rounded-lg border flex items-center justify-center shrink-0",
+                    "w-11 h-11 sm:w-14 sm:h-14 rounded-xl border flex items-center justify-center shrink-0",
                     balance >= 0 ? "bg-orange-50 border-orange-100" : "bg-red-50 border-red-100"
                   )}>
-                    <Wallet className={clsx("w-5 h-5 sm:w-6 sm:h-6", balance >= 0 ? "text-[#ff7f00]" : "text-red-600")} />
+                    <Wallet className={clsx("w-5 h-5 sm:w-7 sm:h-7", balance >= 0 ? "text-[#ff7f00]" : "text-red-600")} />
                   </div>
                   <div className="text-left min-w-0">
-                    <p className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] mb-1">
+                    <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] mb-1 truncate">
                       Saldo Atual
                     </p>
                     <p className={clsx(
-                      "text-2xl sm:text-3xl font-bold tabular-nums leading-none",
+                      "text-2xl sm:text-4xl font-bold tabular-nums leading-none",
                       balance >= 0 ? "text-[#ff7f00]" : "text-red-600"
                     )}>
                       {formatCurrency(balance)}
@@ -489,38 +515,40 @@ export default function ProjectDashboard() {
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Nenhuma despesa registrada</p>
                   </div>
                 ) : (
-                  <div className="flex-1 flex items-center justify-center gap-4">
-                    <ResponsiveContainer width="60%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={chartData}
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={isTVMode ? 180 : 100}
-                          dataKey="value"
-                          isAnimationActive={false}
-                        >
-                          {chartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} stroke="white" strokeWidth={2} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          content={({ active, payload }: any) => {
-                            if (active && payload && payload.length) {
-                              return (
-                                <div className="bg-white border border-gray-200 p-3 rounded-lg shadow-lg">
-                                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{payload[0].name}</p>
-                                  <p className="text-sm font-bold text-gray-900">{formatCurrency(payload[0].value)}</p>
-                                </div>
-                              );
-                            }
-                            return null;
-                          }}
-                          isAnimationActive={false}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="flex flex-col w-1/3 p-2 bg-gray-50 rounded-lg border border-gray-100 max-h-72 overflow-y-auto scrollbar-hide text-left">
+                  <div className="flex-1 flex flex-col sm:flex-row items-center justify-center gap-4 min-h-0">
+                    <div className="flex-1 w-full h-[200px] sm:h-full min-h-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={chartData}
+                            cx="50%"
+                            cy="50%"
+                            outerRadius="80%"
+                            dataKey="value"
+                            isAnimationActive={false}
+                          >
+                            {chartData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} stroke="white" strokeWidth={2} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            content={({ active, payload }: any) => {
+                              if (active && payload && payload.length) {
+                                return (
+                                  <div className="bg-white border border-gray-200 p-3 rounded-lg shadow-lg">
+                                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{payload[0].name}</p>
+                                    <p className="text-sm font-bold text-gray-900">{formatCurrency(payload[0].value)}</p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                            isAnimationActive={false}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex flex-col w-full sm:w-1/3 p-3 bg-gray-50 rounded-lg border border-gray-100 max-h-72 overflow-y-auto scrollbar-hide text-left shrink-0">
                       {chartData.map((entry, index) => {
                         const totalChartValue = chartData.reduce((acc, curr) => acc + curr.value, 0);
                         const pct = totalChartValue > 0 ? Math.round((entry.value / totalChartValue) * 100) : 0;
@@ -554,45 +582,61 @@ export default function ProjectDashboard() {
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Nenhuma transação histórica</p>
                   </div>
                 ) : (
-                  <div className="flex-1">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={cashFlowData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                        <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 'bold', fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                        <YAxis hide domain={['dataMin', 'dataMax']} />
-                        <Tooltip
-                          content={({ active, payload }: any) => {
-                            if (active && payload && payload.length) {
-                              return (
-                                <div className="bg-white border border-gray-200 p-3 rounded-lg shadow-lg">
-                                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">{payload[0].payload.name}</p>
-                                  <p className="text-xs font-bold text-green-600">Entrada: {formatCurrency(payload[0].value)}</p>
-                                  <p className="text-xs font-bold text-red-600">Saída: {formatCurrency(payload[1].value)}</p>
-                                </div>
-                              );
-                            }
-                            return null;
-                          }}
-                          isAnimationActive={false}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="Entrada"
-                          stroke="#22c55e"
-                          strokeWidth={3}
-                          dot={{ fill: '#22c55e', strokeWidth: 2, r: 4 }}
-                          isAnimationActive={false}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="Saída"
-                          stroke="#ef4444"
-                          strokeWidth={3}
-                          dot={{ fill: '#ef4444', strokeWidth: 2, r: 4 }}
-                          isAnimationActive={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                  <div className="flex-1 flex flex-col min-h-0">
+                    <div className="flex-1 min-h-0 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={cashFlowData} margin={{ top: 35, right: 45, left: 45, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                          <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 'bold', fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                          <YAxis hide domain={['dataMin', 'dataMax']} padding={{ top: 20, bottom: 20 }} />
+                          <Tooltip
+                            content={({ active, payload }: any) => {
+                              if (active && payload && payload.length) {
+                                return (
+                                  <div className="bg-white border border-gray-200 p-3 rounded-lg shadow-lg">
+                                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">{payload[0].payload.name}</p>
+                                    <p className="text-xs font-bold text-green-600">Entrada: {formatCurrency(payload[0].value)}</p>
+                                    <p className="text-xs font-bold text-red-600">Saída: {formatCurrency(payload[1].value)}</p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                            isAnimationActive={false}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="Entrada"
+                            stroke="#22c55e"
+                            strokeWidth={3}
+                            dot={{ fill: '#22c55e', strokeWidth: 2, r: 4 }}
+                            activeDot={{ r: 6 }}
+                            label={<CustomizedFlowLabel fill="#22c55e" position="top" />}
+                            isAnimationActive={false}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="Saída"
+                            stroke="#ef4444"
+                            strokeWidth={3}
+                            dot={{ fill: '#ef4444', strokeWidth: 2, r: 4 }}
+                            activeDot={{ r: 6 }}
+                            label={<CustomizedFlowLabel fill="#ef4444" position="bottom" />}
+                            isAnimationActive={false}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex flex-wrap justify-center items-center gap-x-4 gap-y-2 mt-6 pb-2 px-2 w-full shrink-0">
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
+                        <span className="text-[9px] sm:text-[10px] font-bold text-gray-500 uppercase tracking-wider">ENTRADA DE CAPITAL</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+                        <span className="text-[9px] sm:text-[10px] font-bold text-gray-500 uppercase tracking-wider">SAÍDA DE CAPITAL</span>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
