@@ -8,7 +8,7 @@ if (!getApps().length) {
   initializeApp({ credential: cert(serviceAccount) });
 }
 
-const db = getFirestore();
+const db = getFirestore('ai-studio-f3c49800-953a-4256-9966-e5f505300c6d');
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const token = req.query.token as string;
