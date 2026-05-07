@@ -3,11 +3,22 @@ import * as admin from 'firebase-admin';
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    databaseURL: 'https://ai-studio-f3c49800-953a-4256-9966-e5f505300c6d.firebaseio.com'
-  });
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
+
+    console.log('[Firebase Admin Init] Raw FIREBASE_SERVICE_ACCOUNT length:', process.env.FIREBASE_SERVICE_ACCOUNT?.length);
+    console.log('[Firebase Admin Init] Parsed serviceAccount keys:', Object.keys(serviceAccount));
+    console.log('[Firebase Admin Init] serviceAccount.private_key (first 50 chars): ', serviceAccount.private_key?.substring(0, 50));
+
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      databaseURL: 'https://ai-studio-f3c49800-953a-4256-9966-e5f505300c6d.firebaseio.com'
+    });
+  } catch (parseError) {
+    console.error('Error parsing FIREBASE_SERVICE_ACCOUNT:', parseError);
+    // Re-throw or handle as a critical error to stop further execution
+    throw new Error('Failed to initialize Firebase Admin due to service account parsing error.');
+  }
 }
 
 const db = admin.firestore();
@@ -36,13 +47,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const projectId = projectDoc.id;
 
     // Fetch boards, tasks, transactions, budgets in parallel
-    const [boardsSnap, tasksSnap, transactionsSnap, budgetsSnap, usersSnap] = await Promise.all([
+    const promises: Promise<any>[] = [
       db.collection('boards').where('projectId', '==', projectId).get(),
       db.collection('tasks').where('projectId', '==', projectId).get(),
       db.collection('transactions').where('projectId', '==', projectId).get(),
       db.collection('budgets').where('projectId', '==', projectId).get(),
-      db.collection('users').where(admin.firestore.FieldPath.documentId(), 'in', projectData.members.slice(0, 30)).get()
-    ]);
+    ];
+
+    // Only fetch users if there are members
+    if (projectData.members && projectData.members.length > 0) {
+      promises.push(db.collection('users').where(admin.firestore.FieldPath.documentId(), 'in', projectData.members.slice(0, 30)).get());
+    } else {
+      promises.push(Promise.resolve({ docs: [] }));
+    }
+
+    const [boardsSnap, tasksSnap, transactionsSnap, budgetsSnap, usersSnap] = await Promise.all(promises);
 
     // Parse boards and tasks
     const boards = boardsSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
