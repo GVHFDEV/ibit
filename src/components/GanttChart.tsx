@@ -41,13 +41,18 @@ import {
   Clock,
   AlertCircle,
   BarChart,
-  Layout
+  Layout,
+  Printer
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
 import { handleFirestoreError, OperationType } from '../utils/errorHandlers';
 import { motion, AnimatePresence } from 'motion/react';
 import ProjectSettingsModal from './ProjectSettingsModal';
+import { jsPDF } from 'jspdf';
+import { toPng } from 'html-to-image';
+// @ts-ignore
+import logoIbit from '../media/ibitlogo.svg';
 
 // --- Components ---
 
@@ -400,6 +405,7 @@ export default function GanttChart() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showMobileActions, setShowMobileActions] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const [isStartDateModalOpen, setIsStartDateModalOpen] = useState(false);
   const [customStartDate, setCustomStartDate] = useState('');
@@ -674,6 +680,134 @@ export default function GanttChart() {
     };
   };
 
+  // --- PDF Export Handler ---
+  const handleExportPDF = async () => {
+    if (isExporting || tasks.length === 0) return;
+    setIsExporting(true);
+    await new Promise(r => setTimeout(r, 100));
+
+    try {
+      const allStarts = tasks.map(t => new Date(t.startDate.seconds * 1000));
+      const allEnds = tasks.map(t => new Date(t.endDate.seconds * 1000));
+      const minDate = new Date(Math.min(...allStarts.map(d => d.getTime())));
+      const maxDate = new Date(Math.max(...allEnds.map(d => d.getTime())));
+      minDate.setDate(minDate.getDate() - 1); minDate.setHours(0,0,0,0);
+      maxDate.setDate(maxDate.getDate() + 2); maxDate.setHours(0,0,0,0);
+      const totalDays = Math.ceil((maxDate.getTime() - minDate.getTime()) / 86400000);
+      const dayDates: Date[] = [];
+      for (let i = 0; i < totalDays; i++) { const d = new Date(minDate); d.setDate(minDate.getDate() + i); dayDates.push(d); }
+
+      const ROW_H = 32;
+      const LEFT_W = 520;
+      const cellW = Math.max(14, Math.min(28, Math.floor(900 / totalDays)));
+      const TIMELINE_W = totalDays * cellW;
+      const TOTAL_W = LEFT_W + TIMELINE_W + 96;
+      const sBg: Record<string, string> = { pending: '#e5e7eb', in_progress: '#ff7f00', completed: '#10b981', delayed: '#ef4444' };
+      const sFg: Record<string, string> = { pending: '#6b7280', in_progress: '#fff', completed: '#fff', delayed: '#fff' };
+      const sLbl: Record<string, string> = { pending: 'PDT', in_progress: 'AND', completed: 'FTO', delayed: 'ATR' };
+      const MN = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+
+      const container = document.createElement('div');
+      container.style.cssText = `position:fixed;left:0;top:0;background:#fff;padding:40px;font-family:system-ui,-apple-system,sans-serif;width:${TOTAL_W}px;box-sizing:border-box;z-index:50;overflow:visible;`;
+      document.body.appendChild(container);
+      container.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #ff7f00;"><div><div style="font-size:20px;font-weight:800;color:#111;text-transform:uppercase;letter-spacing:0.1em;">${project?.name || 'Projeto'} — GANTT</div><div style="font-size:10px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:0.15em;margin-top:4px;">Exportado em ${new Date().toLocaleDateString('pt-BR')} • ${tasks.length} funções</div></div></div>`;
+
+      const body = document.createElement('div');
+      body.style.cssText = 'display:flex;border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;';
+
+      // LEFT PANEL
+      const left = document.createElement('div');
+      left.style.cssText = `width:${LEFT_W}px;flex-shrink:0;border-right:2px solid #e5e7eb;`;
+      left.innerHTML = `<div style="display:grid;grid-template-columns:30px 1fr 70px 50px 55px;height:${ROW_H*2}px;background:#f9fafb;border-bottom:2px solid #e5e7eb;"><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:8px;font-weight:800;color:#9ca3af;">#</div><div style="padding:4px 8px;display:flex;align-items:center;border-right:1px solid #e5e7eb;font-size:8px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;">FUNÇÃO</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:7px;font-weight:800;color:#9ca3af;">CATEGORIA</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:8px;font-weight:800;color:#9ca3af;">STS</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:#9ca3af;">PROG</div></div>`;
+
+      let tIdx = 0;
+      rows.forEach(row => {
+        if (row.type === 'section') {
+          const s = document.createElement('div');
+          s.style.cssText = `height:${ROW_H}px;background:#f3f4f6;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;padding:0 8px;`;
+          s.innerHTML = `<span style="font-size:9px;font-weight:900;color:#374151;text-transform:uppercase;letter-spacing:0.1em;">▸ ${row.name}</span>`;
+          left.appendChild(s); return;
+        }
+        tIdx++;
+        const t = row.task;
+        const bg = tIdx % 2 === 0 ? '#fafafa' : '#fff';
+        const pc = t.progress >= 100 ? '#10b981' : t.progress > 0 ? '#ff7f00' : '#9ca3af';
+        const r = document.createElement('div');
+        r.style.cssText = `display:grid;grid-template-columns:30px 1fr 70px 50px 55px;height:${ROW_H}px;background:${bg};border-bottom:1px solid #f3f4f6;`;
+        r.innerHTML = `<div style="padding:2px 4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #f0f0f0;font-size:8px;font-weight:700;color:#bbb;">${tIdx}</div><div style="padding:2px 8px;display:flex;align-items:center;border-right:1px solid #f0f0f0;font-size:9px;font-weight:700;color:#111;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${t.title}</div><div style="padding:2px 4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #f0f0f0;font-size:7px;font-weight:700;color:#6b7280;text-transform:uppercase;">${t.category||'-'}</div><div style="padding:2px;display:flex;align-items:center;justify-content:center;border-right:1px solid #f0f0f0;"><span style="font-size:7px;font-weight:800;color:${sFg[t.status]};background:${sBg[t.status]};padding:1px 4px;border-radius:3px;">${sLbl[t.status]}</span></div><div style="padding:2px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:${pc};">${t.progress}%</div>`;
+        left.appendChild(r);
+      });
+
+      // RIGHT PANEL (Timeline)
+      const right = document.createElement('div');
+      right.style.cssText = `flex:1;overflow:visible;min-width:${TIMELINE_W}px;`;
+
+      // Month row
+      const mRow = document.createElement('div');
+      mRow.style.cssText = `display:flex;height:${ROW_H}px;background:#f9fafb;border-bottom:1px solid #e5e7eb;`;
+      let cM = -1, mS = 0, mSp = 0;
+      const mCells: {m:number;y:number;s:number}[] = [];
+      dayDates.forEach((d, i) => { const m = d.getMonth(); if (m !== cM) { if (cM !== -1) mCells.push({m:cM,y:dayDates[mS].getFullYear(),s:mSp}); cM=m; mSp=1; mS=i; } else { mSp++; } });
+      if (mSp > 0) mCells.push({m:cM,y:dayDates[mS].getFullYear(),s:mSp});
+      mCells.forEach(mc => { const c = document.createElement('div'); c.style.cssText = `width:${mc.s*cellW}px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:8px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:0.1em;`; c.textContent = `${MN[mc.m]} ${mc.y}`; mRow.appendChild(c); });
+      right.appendChild(mRow);
+
+      // Day row
+      const dRow = document.createElement('div');
+      dRow.style.cssText = `display:flex;height:${ROW_H}px;background:#f9fafb;border-bottom:2px solid #e5e7eb;`;
+      dayDates.forEach(d => { const w = [0,6].includes(d.getDay()); const c = document.createElement('div'); c.style.cssText = `width:${cellW}px;display:flex;align-items:center;justify-content:center;border-right:1px solid #f0f0f0;font-size:7px;font-weight:700;${w?'background:#f3f4f6;color:#bbb;':'color:#6b7280;'}`; c.textContent = `${d.getDate()}`; dRow.appendChild(c); });
+      right.appendChild(dRow);
+
+      // Task bar rows
+      rows.forEach(row => {
+        const bR = document.createElement('div');
+        bR.style.cssText = `display:flex;height:${ROW_H}px;position:relative;border-bottom:1px solid #f3f4f6;${row.type==='section'?'background:#f3f4f6;':''}`;
+        dayDates.forEach(d => { const c = document.createElement('div'); const w=[0,6].includes(d.getDay()); c.style.cssText = `width:${cellW}px;height:100%;border-right:1px solid ${w?'#e9e9e9':'#f5f5f5'};flex-shrink:0;${w&&row.type!=='section'?'background:#fafafa;':''}`; bR.appendChild(c); });
+        if (row.type === 'task') {
+          const t = row.task;
+          const ts = new Date(t.startDate.seconds*1000); ts.setHours(0,0,0,0);
+          const te = new Date(t.endDate.seconds*1000); te.setHours(0,0,0,0);
+          const oD = Math.max(0, Math.floor((ts.getTime()-minDate.getTime())/86400000));
+          const sD = Math.max(1, Math.ceil((te.getTime()-ts.getTime())/86400000)+1);
+          const bL = oD*cellW+2, bW = Math.max(cellW-4, sD*cellW-4);
+          const bar = document.createElement('div');
+          bar.style.cssText = `position:absolute;top:5px;height:${ROW_H-10}px;left:${bL}px;width:${bW}px;background:${sBg[t.status]||'#e5e7eb'};border-radius:4px;overflow:hidden;display:flex;align-items:center;padding:0 6px;`;
+          bar.innerHTML = `<div style="position:absolute;left:0;top:0;bottom:0;width:${t.progress}%;background:rgba(0,0,0,0.15);border-radius:4px 0 0 4px;"></div><span style="position:relative;z-index:1;font-size:7px;font-weight:800;color:${t.status==='pending'?'#555':'#fff'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:uppercase;letter-spacing:0.05em;">${t.title}</span>`;
+          bR.appendChild(bar);
+        }
+        right.appendChild(bR);
+      });
+
+      body.appendChild(left); body.appendChild(right);
+      container.appendChild(body);
+
+      // Footer
+      const footer = document.createElement('div');
+      footer.style.cssText = 'display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;';
+      footer.innerHTML = `<span style="font-size:10px;color:#9ca3af;font-weight:500;">Cronograma Gantt exportado da plataforma IBIT em ${new Date().toLocaleDateString('pt-BR')}</span>`;
+      const fLogo = new window.Image(); fLogo.src = logoIbit; fLogo.style.cssText = 'height:30px;object-fit:contain;';
+      footer.appendChild(fLogo); container.appendChild(footer);
+
+      await new Promise(r => setTimeout(r, 500));
+      const dataUrl = await toPng(container, { cacheBust: true, backgroundColor: '#ffffff', pixelRatio: 2 });
+      const pW = 841.89, pH = 595.28, mg = 24;
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const aW = pW-mg*2, aH = pH-mg*2;
+      const ip = pdf.getImageProperties(dataUrl);
+      const dW = aW, dH = dW*(ip.height/ip.width);
+      let hL = dH, p = mg;
+      pdf.setFillColor(255,255,255); pdf.rect(0,0,pW,pH,'F'); pdf.addImage(dataUrl,'PNG',mg,p,dW,dH); hL -= aH;
+      while (hL > 0) { p -= aH; pdf.addPage(); pdf.setFillColor(255,255,255); pdf.rect(0,0,pW,pH,'F'); pdf.addImage(dataUrl,'PNG',mg,p,dW,dH); hL -= aH; }
+      pdf.save(`gantt-${(project?.name||'projeto').replace(/\s+/g,'-')}-${new Date().toISOString().substring(0,10)}.pdf`);
+      document.body.removeChild(container);
+    } catch (err) {
+      console.error('[Gantt PDF Export] Error:', err);
+      alert('Erro ao exportar PDF. Tente novamente.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex bg-[#f8f9fa] min-h-screen">
@@ -771,6 +905,15 @@ export default function GanttChart() {
           </div>
 
           <div className="hidden sm:flex gap-3">
+             <button 
+               onClick={handleExportPDF}
+               disabled={isExporting || tasks.length === 0}
+               className="bg-white text-gray-700 border border-gray-300 px-3 py-1.5 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-[10px] rounded-lg hover:bg-gray-50 active:scale-95 disabled:opacity-50"
+               title="Exportar PDF"
+             >
+               {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin text-[#ff7f00]" /> : <Printer className="w-3.5 h-3.5" />}
+               EXPORTAR PDF
+             </button>
              <button 
                onClick={() => setIsStakeholderModalOpen(true)}
                className="bg-white text-gray-700 border border-gray-300 px-3 py-1.5 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-[10px] rounded-lg hover:bg-gray-50 active:scale-95"
@@ -1105,6 +1248,24 @@ export default function GanttChart() {
                </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Exporting Overlay */}
+      <AnimatePresence>
+        {isExporting && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center gap-6"
+          >
+            <Loader2 className="w-12 h-12 text-[#ff7f00] animate-spin" />
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-gray-900 tracking-widest uppercase mb-2">Exportando PDF</h2>
+              <p className="text-sm text-gray-500 font-medium">Gerando cronograma completo...</p>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
 

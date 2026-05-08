@@ -282,7 +282,8 @@ export default function PublicAudit() {
                       Saldo Atual
                     </p>
                     <p className={clsx(
-                      "text-2xl sm:text-4xl font-bold tabular-nums leading-none",
+                      "font-bold tabular-nums leading-none truncate",
+                      kpis.balance.toString().length > 10 ? "text-lg sm:text-2xl" : "text-xl sm:text-3xl",
                       kpis.balance >= 0 ? "text-[#ff7f00]" : "text-red-600"
                     )}>
                       {formatCurrency(kpis.balance)}
@@ -421,9 +422,15 @@ export default function PublicAudit() {
         </div>
       </main>
 
-      <footer className="mt-auto border-t border-gray-200 bg-white py-8 w-full shrink-0">
-        <div className="max-w-7xl mx-auto px-6 flex items-center justify-center gap-2">
-          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em]">Escuderia IBIT © {new Date().getFullYear()}</span>
+      <footer className="mt-auto border-t border-gray-200 bg-white py-10 w-full shrink-0">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col items-center justify-center gap-4">
+          <div className="flex flex-col items-center gap-2">
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em]">POWERED BY</span>
+            <img src={ibitLogo} alt="Logo IBIT" className="h-6 opacity-40 grayscale hover:opacity-100 hover:grayscale-0 transition-all cursor-pointer" />
+          </div>
+          <span className="text-[9px] text-gray-400 font-bold uppercase tracking-[0.2em] mt-2">
+            Escuderia IBIT © {new Date().getFullYear()}
+          </span>
         </div>
       </footer>
     </div>

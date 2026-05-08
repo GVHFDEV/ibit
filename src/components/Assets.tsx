@@ -38,7 +38,8 @@ import {
   LayoutGrid,
   List,
   ArrowLeft,
-  FilePlus2
+  FilePlus2,
+  Upload
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
@@ -85,6 +86,40 @@ export default function Assets() {
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showNewAssetDropdown]);
+
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportJSON = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !projectId || !user) return;
+    
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      
+      if (!parsed.content) {
+        throw new Error('Arquivo JSON inválido para documento');
+      }
+
+      await addDoc(collection(db, 'assetDocuments'), {
+        projectId,
+        title: parsed.title || 'Documento Importado',
+        content: parsed.content,
+        type: 'note',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        ownerId: user.uid,
+        folderId: currentFolderId || null
+      });
+
+      if (importInputRef.current) {
+        importInputRef.current.value = '';
+      }
+    } catch (error) {
+      console.error('Error importing JSON:', error);
+      alert('Erro ao importar arquivo. Verifique se é um arquivo JSON de documento válido exportado pelo IBIT.');
+    }
+  };
 
   // 1. Fetch Project Data
   useEffect(() => {
@@ -202,7 +237,8 @@ export default function Assets() {
 
   const filteredDocuments = documents.filter(d => {
     const folderMatch = (d.folderId || null) === (currentFolderId || null);
-    const searchMatch = d.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const docTitle = d.title || (d as any).name || '';
+    const searchMatch = docTitle.toLowerCase().includes(searchQuery.toLowerCase());
     return folderMatch && searchMatch;
   });
 
@@ -453,6 +489,22 @@ export default function Assets() {
               PASTA
             </button>
             
+            <input
+              type="file"
+              ref={importInputRef}
+              accept=".json"
+              className="hidden"
+              onChange={handleImportJSON}
+            />
+            <button 
+              onClick={() => importInputRef.current?.click()}
+              className="bg-white text-gray-700 border border-gray-300 px-3 sm:px-5 py-2 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg hover:bg-gray-50 active:scale-95 flex-1 sm:flex-none justify-center"
+              title="Importar Documento (.json)"
+            >
+              <Upload className="w-4 h-4" />
+              <span className="hidden sm:inline">IMPORTAR</span>
+            </button>
+
             {/* New Asset Dropdown */}
             <div className="relative flex-1 sm:flex-none" ref={dropdownRef}>
               <button 

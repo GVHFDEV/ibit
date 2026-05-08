@@ -49,7 +49,8 @@ import {
   Tag as TagIcon,
   X,
   CalendarDays,
-  Printer
+  Printer,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
@@ -182,6 +183,32 @@ export default function DocumentEditor({ documentId, onClose }: DocumentEditorPr
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    }
+  };
+
+  const handleExportJSON = () => {
+    if (!editor) return;
+    try {
+      const jsonContent = editor.getJSON();
+      const exportData = {
+        title,
+        content: jsonContent,
+        projectTags,
+        createdAt: new Date().toISOString()
+      };
+      const dataStr = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${title.replace(/\s+/g, '-') || 'documento'}-${new Date().toISOString().substring(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('[JSON Export] Error:', err);
+      setErrorMsg('Erro ao exportar JSON');
     }
   };
 
@@ -1019,6 +1046,13 @@ export default function DocumentEditor({ documentId, onClose }: DocumentEditorPr
         </ToolbarButton>
 
         <div className="w-px h-5 bg-gray-200 mx-1 shrink-0" />
+
+        <ToolbarButton
+          onClick={handleExportJSON}
+          title="Exportar JSON"
+        >
+          <Download className="w-4 h-4" />
+        </ToolbarButton>
 
         <ToolbarButton
           onClick={handleExportPDF}

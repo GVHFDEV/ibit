@@ -244,7 +244,7 @@ service cloud.firestore {
              data.role in ['admin', 'user'];
     }
     function isValidProject(data) {
-      return hasOnlyAllowedFields(['name', 'description', 'photoURL', 'ownerId', 'members', 'roles', 'createdAt', 'updatedAt', 'shortId', 'ganttStartDate', 'auditToken']) &&
+      return hasOnlyAllowedFields(['name', 'description', 'photoURL', 'ownerId', 'members', 'roles', 'createdAt', 'updatedAt', 'shortId', 'ganttStartDate', 'auditToken', 'targetEventName', 'targetDate']) &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              (!( 'description' in data ) || data.description == null || (data.description is string && data.description.size() < 1000)) &&
              (!( 'photoURL' in data ) || data.photoURL == null || (data.photoURL is string && data.photoURL.size() < 1000)) &&
@@ -255,7 +255,9 @@ service cloud.firestore {
              (!( 'ganttStartDate' in data ) || data.ganttStartDate is timestamp) &&
              (!( 'updatedAt' in data ) || data.updatedAt is timestamp) &&
              data.shortId is string && data.shortId.size() == 8 &&
-             (!( 'auditToken' in data ) || data.auditToken == null || (data.auditToken is string && data.auditToken.size() > 0 && data.auditToken.size() < 128));
+             (!( 'auditToken' in data ) || data.auditToken == null || (data.auditToken is string && data.auditToken.size() > 0 && data.auditToken.size() < 128)) &&
+             (!( 'targetEventName' in data ) || data.targetEventName is string) &&
+             (!( 'targetDate' in data ) || data.targetDate is timestamp);
     }
     function isValidBoard(data) {
       return hasOnlyAllowedFields(['projectId', 'name', 'order', 'color', 'ownerId', 'createdAt', 'updatedAt']) &&
