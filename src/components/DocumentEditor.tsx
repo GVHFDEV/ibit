@@ -85,13 +85,17 @@ const TagNode = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
+    const isHex = HTMLAttributes.color?.startsWith('#');
     return [
       'span',
       mergeAttributes({
         'data-type': 'tag',
         'data-tag-label': HTMLAttributes.label,
-        class: `px-2 py-0.5 text-[10px] font-bold border rounded inline-flex items-center justify-center mx-1 whitespace-nowrap overflow-visible ${HTMLAttributes.color}`,
-        style: 'white-space: nowrap !important;',
+        class: clsx(
+          "px-2 py-0.5 text-[10px] font-bold border rounded inline-flex items-center justify-center mx-1 whitespace-nowrap overflow-visible",
+          !isHex ? HTMLAttributes.color : "text-white border-transparent"
+        ),
+        style: `white-space: nowrap !important; ${isHex ? `background-color: ${HTMLAttributes.color};` : ''}`,
       }),
       HTMLAttributes.label,
     ]
@@ -971,7 +975,13 @@ export default function DocumentEditor({ documentId, onClose }: DocumentEditorPr
                           setShowTagMenu(false);
                         }}
                       >
-                        <span className={clsx("px-2.5 py-1 text-[10px] font-bold border rounded shadow-sm inline-block whitespace-nowrap", tag.color)}>
+                        <span 
+                          className={clsx(
+                            "px-2.5 py-1 text-[10px] font-bold border rounded shadow-sm inline-block whitespace-nowrap",
+                            (!tag.color || !tag.color.startsWith('#')) ? (tag.color || 'bg-gray-500 text-white') : 'text-white border-transparent'
+                          )}
+                          style={tag.color?.startsWith('#') ? { backgroundColor: tag.color } : {}}
+                        >
                           {tag.label}
                         </span>
                       </button>
@@ -1332,7 +1342,13 @@ export default function DocumentEditor({ documentId, onClose }: DocumentEditorPr
                           setShowTagMenu(false);
                         }}
                       >
-                        <span className={clsx("px-3 py-1.5 text-xs font-bold border rounded-lg shadow-sm inline-block whitespace-nowrap", tag.color)}>
+                        <span 
+                          className={clsx(
+                            "px-3 py-1.5 text-xs font-bold border rounded-lg shadow-sm inline-block whitespace-nowrap",
+                            (!tag.color || !tag.color.startsWith('#')) ? (tag.color || 'bg-gray-500 text-white') : 'text-white border-transparent'
+                          )}
+                          style={tag.color?.startsWith('#') ? { backgroundColor: tag.color } : {}}
+                        >
                           {tag.label}
                         </span>
                       </button>
