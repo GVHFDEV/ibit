@@ -313,11 +313,12 @@ export default function TaskDetailsModal({ task, onClose, projectMembers }: Task
                       key={tag.id}
                       onClick={() => toggleTag(tag.id)}
                       className={clsx(
-                        "px-2.5 py-1 text-[9px] font-bold border rounded transition-all",
+                        "px-2.5 py-1 text-[9px] font-bold border rounded transition-all shadow-sm",
                         tags.includes(tag.id) 
-                          ? tag.color 
+                          ? ((!tag.color || !tag.color.startsWith('#')) ? tag.color : 'text-white border-transparent')
                           : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
                       )}
+                      style={tags.includes(tag.id) && tag.color?.startsWith('#') ? { backgroundColor: tag.color } : {}}
                     >
                       {tag.label}
                     </button>

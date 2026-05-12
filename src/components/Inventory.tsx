@@ -307,10 +307,13 @@ export default function Inventory() {
                             {item.tags.map(tagId => {
                               const tag = projectTags.find(t => t.id === tagId);
                               return (
-                                <span key={tagId} className={clsx(
-                                  "text-[9px] font-bold px-1.5 py-0.5 border rounded transition-all",
-                                  tag ? tag.color : "bg-gray-50 text-gray-600 border-gray-200"
-                                )}>
+                                <span key={tagId} 
+                                  className={clsx(
+                                    "text-[9px] font-bold px-1.5 py-0.5 border rounded transition-all shadow-sm",
+                                    (!tag || !tag.color || !tag.color.startsWith('#')) ? (tag?.color || "bg-gray-50 text-gray-600 border-gray-200") : "text-white border-transparent"
+                                  )}
+                                  style={tag?.color?.startsWith('#') ? { backgroundColor: tag.color } : {}}
+                                >
                                   {tag ? tag.label : 'Tag Removida'}
                                 </span>
                               );
@@ -617,17 +620,20 @@ function ItemModal({ projectId, item, members, tasks, projectTags, onClose }: It
                 </label>
                 <div className="flex flex-wrap gap-2 mb-4">
                   {projectTags.map(tag => (
-                    <button 
-                      key={tag.id} 
-                      type="button" 
-                      onClick={() => toggleTag(tag.id)} 
-                      className={clsx(
-                        "px-3 py-1.5 text-[10px] font-bold border rounded-md transition-all", 
-                        selectedTags.includes(tag.id) ? tag.color : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
-                      )}
-                    >
-                      {tag.label}
-                    </button>
+                      <button 
+                        key={tag.id} 
+                        type="button" 
+                        onClick={() => toggleTag(tag.id)} 
+                        className={clsx(
+                          "px-3 py-1.5 text-[10px] font-bold border rounded-md transition-all shadow-sm", 
+                          selectedTags.includes(tag.id) 
+                            ? ((!tag.color || !tag.color.startsWith('#')) ? tag.color : 'text-white border-transparent')
+                            : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
+                        )}
+                        style={selectedTags.includes(tag.id) && tag.color?.startsWith('#') ? { backgroundColor: tag.color } : {}}
+                      >
+                        {tag.label}
+                      </button>
                   ))}
                 </div>
                 {isAddingCustomTag ? (

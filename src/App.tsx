@@ -19,6 +19,7 @@ import RACIMatrix from './components/RACIMatrix';
 import GanttChart from './components/GanttChart';
 import ProjectFinance from './components/ProjectFinance';
 import ProjectMembers from './components/ProjectMembers';
+import ProjectTags from './components/ProjectTags';
 import PublicAudit from './components/PublicAudit';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -129,6 +130,14 @@ export default function App() {
               element={
                 <PrivateRoute>
                   <ProjectMembers />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/project/:projectId/tags"
+              element={
+                <PrivateRoute>
+                  <ProjectTags />
                 </PrivateRoute>
               }
             />

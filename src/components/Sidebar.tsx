@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { LogOut, LayoutDashboard, ArrowLeft, Kanban, Settings, Image, Calendar, Archive, Folder, User as UserIcon, Users, Grid3X3, BarChart, ChevronLeft, ChevronRight, DollarSign } from 'lucide-react';
+import { LogOut, LayoutDashboard, ArrowLeft, Kanban, Settings, Image, Calendar, Archive, Folder, User as UserIcon, Users, Tag, Grid3X3, BarChart, ChevronLeft, ChevronRight, DollarSign } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useSidebar } from '../contexts/SidebarContext';
 import UserProfileModal from './UserProfileModal';
@@ -246,6 +246,20 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
                     >
                       <Users className="w-5 h-5 shrink-0" />
                       {!isCollapsed && <span>MEMBROS</span>}
+                    </Link>
+                  )}
+
+                  {showMembersLink && (
+                    <Link
+                      to={`/project/${projectId}/tags`}
+                      className={`flex items-center gap-3 px-4 py-3 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/tags`
+                        ? 'bg-orange-50 text-[#ff7f00]'
+                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                        } ${isCollapsed ? 'justify-center px-0' : ''}`}
+                      title={isCollapsed ? "TAGS" : ""}
+                    >
+                      <Tag className="w-5 h-5 shrink-0" />
+                      {!isCollapsed && <span>TAGS</span>}
                     </Link>
                   )}
                 </>

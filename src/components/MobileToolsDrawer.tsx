@@ -16,11 +16,17 @@ import {
   BarChart,
   DollarSign,
   Settings,
+  Users,
+  Tag,
   LogOut,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import clsx from 'clsx';
 import logoIbit from '../media/ibitlogo.svg';
+import { Project } from '../types';
+import { canManageMembers } from '../utils/roleHelpers';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface MobileToolsDrawerProps {
   isOpen: boolean;
@@ -39,6 +45,20 @@ export default function MobileToolsDrawer({ isOpen, onClose, projectId, projectN
     navigate(path);
     onClose();
   };
+
+  const [project, setProject] = React.useState<Project | null>(null);
+
+  React.useEffect(() => {
+    if (!projectId || !user) return;
+    const projectRef = doc(db, 'projects', projectId);
+    return onSnapshot(projectRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setProject({ id: docSnap.id, ...docSnap.data() } as Project);
+      }
+    });
+  }, [projectId, user]);
+
+  const showAdminLinks = project && user && canManageMembers(project, user.uid);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -151,19 +171,52 @@ export default function MobileToolsDrawer({ isOpen, onClose, projectId, projectN
                 })}
 
                 {/* Settings */}
-                {onOpenSettings && (
+                {(onOpenSettings || showAdminLinks) && (
                   <>
                     <div className="h-px bg-gray-200 mx-4 my-3" />
                     <div className="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">
                       CONFIGURAÇÕES
                     </div>
-                    <button
-                      onClick={() => { onOpenSettings(); onClose(); }}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-[#ff7f00] hover:bg-orange-50 font-bold tracking-wider text-sm rounded-lg transition-colors"
-                    >
-                      <Settings className="w-5 h-5 shrink-0" />
-                      <span>PERSONALIZAR</span>
-                    </button>
+                    
+                    {onOpenSettings && (
+                      <button
+                        onClick={() => { onOpenSettings(); onClose(); }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-[#ff7f00] hover:bg-orange-50 font-bold tracking-wider text-sm rounded-lg transition-colors"
+                      >
+                        <Settings className="w-5 h-5 shrink-0" />
+                        <span>PERSONALIZAR</span>
+                      </button>
+                    )}
+
+                    {showAdminLinks && (
+                      <>
+                        <button
+                          onClick={() => handleNavigate(`/project/${projectId}/membros`)}
+                          className={clsx(
+                            'w-full flex items-center gap-3 px-4 py-3 font-bold tracking-wider text-sm rounded-lg transition-colors',
+                            location.pathname === `/project/${projectId}/membros`
+                              ? 'bg-orange-50 text-[#ff7f00]'
+                              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                          )}
+                        >
+                          <Users className="w-5 h-5 shrink-0" />
+                          <span>MEMBROS</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleNavigate(`/project/${projectId}/tags`)}
+                          className={clsx(
+                            'w-full flex items-center gap-3 px-4 py-3 font-bold tracking-wider text-sm rounded-lg transition-colors',
+                            location.pathname === `/project/${projectId}/tags`
+                              ? 'bg-orange-50 text-[#ff7f00]'
+                              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                          )}
+                        >
+                          <Tag className="w-5 h-5 shrink-0" />
+                          <span>TAGS</span>
+                        </button>
+                      </>
+                    )}
                   </>
                 )}
               </nav>

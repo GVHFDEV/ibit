@@ -362,9 +362,10 @@ export default function ProjectBoard() {
                                                   <span 
                                                     key={tagId} 
                                                     className={clsx(
-                                                      "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border rounded-md transition-all",
-                                                      tagInfo ? tagInfo.color : 'bg-gray-50 text-gray-600 border-gray-200'
+                                                      "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border rounded-md transition-all shadow-sm",
+                                                      (!tagInfo || !tagInfo.color || !tagInfo.color.startsWith('#')) ? (tagInfo?.color || 'bg-gray-50 text-gray-600 border-gray-200') : 'text-white border-transparent'
                                                     )}
+                                                    style={tagInfo?.color?.startsWith('#') ? { backgroundColor: tagInfo.color } : {}}
                                                   >
                                                     {tagInfo ? tagInfo.label : 'Tag'}
                                                   </span>
