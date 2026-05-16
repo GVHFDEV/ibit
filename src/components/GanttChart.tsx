@@ -42,7 +42,10 @@ import {
   AlertCircle,
   BarChart,
   Layout,
-  Printer
+  Printer,
+  Upload,
+  FileJson,
+  ChevronDown
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
@@ -69,7 +72,6 @@ function GanttTaskModal({ task, onSave, onClose, participants, allTasks }: Gantt
   const [description, setDescription] = useState(task?.description || '');
   const [startDate, setStartDate] = useState(task?.startDate ? new Date((task.startDate as any).seconds * 1000).toISOString().split('T')[0] : '');
   const [endDate, setEndDate] = useState(task?.endDate ? new Date((task.endDate as any).seconds * 1000).toISOString().split('T')[0] : '');
-  const [status, setStatus] = useState<GanttTask['status']>(task?.status || 'pending');
   const [progress, setProgress] = useState(task?.progress || 0);
   const [category, setCategory] = useState(task?.category || 'MILESTONE');
   const [section, setSection] = useState(task?.section || '');
@@ -84,7 +86,6 @@ function GanttTaskModal({ task, onSave, onClose, participants, allTasks }: Gantt
       description,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
-      status,
       progress,
       assignedTo,
       category,
@@ -153,19 +154,6 @@ function GanttTaskModal({ task, onSave, onClose, participants, allTasks }: Gantt
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">STATUS</label>
-              <select
-                className="w-full bg-white border border-gray-300 px-4 py-3 text-gray-900 focus:outline-none focus:border-[#ff7f00] font-bold text-sm rounded-lg shadow-sm appearance-none"
-                value={status}
-                onChange={e => setStatus(e.target.value as GanttTask['status'])}
-              >
-                <option value="pending">PENDENTE</option>
-                <option value="in_progress">EM ANDAMENTO</option>
-                <option value="completed">FEITO</option>
-                <option value="delayed">ATRASADO</option>
-              </select>
-            </div>
 
             <div className="space-y-2">
               <div className="flex justify-between items-center mb-1">
@@ -406,6 +394,8 @@ export default function GanttChart() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showMobileActions, setShowMobileActions] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isJSONMenuOpen, setIsJSONMenuOpen] = useState(false);
+  const [mobileJSONOpen, setMobileJSONOpen] = useState(false);
 
   const [isStartDateModalOpen, setIsStartDateModalOpen] = useState(false);
   const [customStartDate, setCustomStartDate] = useState('');
@@ -426,6 +416,86 @@ export default function GanttChart() {
   const timelineContainerRef = React.useRef<HTMLDivElement>(null);
   
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const timelineHeaderRef = React.useRef<HTMLDivElement>(null);
+  const timelineBodyRef = React.useRef<HTMLDivElement>(null);
+
+  const handleTimelineScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (timelineHeaderRef.current) {
+      timelineHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft;
+    }
+  };
+
+  // --- JSON Export/Import Handlers ---
+  const handleExportJSON = () => {
+    try {
+      const exportData = {
+        projectName: project?.name || 'Projeto',
+        projectId,
+        exportDate: new Date().toISOString(),
+        type: 'ibit-gantt',
+        tasks: tasks.map(t => ({
+          ...t,
+          startDate: t.startDate?.seconds ? new Date(t.startDate.seconds * 1000).toISOString() : t.startDate,
+          endDate: t.endDate?.seconds ? new Date(t.endDate.seconds * 1000).toISOString() : t.endDate,
+          createdAt: t.createdAt?.seconds ? new Date(t.createdAt.seconds * 1000).toISOString() : t.createdAt,
+          updatedAt: t.updatedAt?.seconds ? new Date(t.updatedAt.seconds * 1000).toISOString() : t.updatedAt,
+        }))
+      };
+      const dataStr = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `gantt-${project?.name.replace(/\s+/g, '-') || 'projeto'}-${new Date().toISOString().substring(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('[Gantt Export] Error:', err);
+    }
+  };
+
+  const importInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleImportJSON = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !projectId || !user) return;
+    
+    const confirmImport = window.confirm('Deseja importar as tarefas deste JSON? Elas serão adicionadas ao projeto atual.');
+    if (!confirmImport) return;
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      
+      if (parsed.type !== 'ibit-gantt' || !Array.isArray(parsed.tasks)) {
+        throw new Error('Arquivo JSON inválido para Gantt');
+      }
+
+      // Add each task to Firestore
+      for (const taskData of parsed.tasks) {
+        const { id, ...cleanTask } = taskData;
+        
+        await addDoc(collection(db, 'ganttTasks'), {
+          ...cleanTask,
+          projectId,
+          startDate: cleanTask.startDate ? new Date(cleanTask.startDate) : null,
+          endDate: cleanTask.endDate ? new Date(cleanTask.endDate) : null,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      if (importInputRef.current) {
+        importInputRef.current.value = '';
+      }
+      alert('Gantt importado com sucesso!');
+    } catch (error) {
+      console.error('Error importing JSON:', error);
+      alert('Erro ao importar arquivo. Verifique se é um arquivo JSON de Gantt válido exportado pelo IBIT.');
+    }
+  };
 
   // 1. Fetch Project Data
   useEffect(() => {
@@ -614,29 +684,67 @@ export default function GanttChart() {
     }
   };
 
-  const timelineDays = 30; // Initial view range
-  const startDateBase = useMemo(() => {
+  const { startDateBase, totalDays } = useMemo(() => {
+    let start = new Date();
     if (project?.ganttStartDate && project.ganttStartDate.seconds) {
-      return new Date(project.ganttStartDate.seconds * 1000);
+      const d = new Date(project.ganttStartDate.seconds * 1000);
+      start = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12, 0, 0);
+    } else if (tasks.length > 0) {
+      const dates = tasks.map(t => {
+        const d = new Date(t.startDate.seconds * 1000);
+        return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()).getTime();
+      });
+      start = new Date(Math.min(...dates));
+      start.setHours(12, 0, 0, 0);
     }
-    if (tasks.length === 0) return new Date();
-    const dates = tasks.map(t => new Date(t.startDate.seconds * 1000).getTime());
-    return new Date(Math.min(...dates));
+    start.setHours(12, 0, 0, 0);
+
+    let end = new Date(start);
+    end.setDate(start.getDate() + 30); // Default minimum 30 days
+    
+    if (tasks.length > 0) {
+      const dates = tasks.map(t => {
+        const d = new Date(t.endDate.seconds * 1000);
+        return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()).getTime();
+      });
+      const maxTaskEnd = new Date(Math.max(...dates));
+      maxTaskEnd.setHours(12, 0, 0, 0);
+      if (maxTaskEnd > end) {
+        end = new Date(maxTaskEnd);
+      }
+    }
+    // Buffer reduced to 2 days as requested
+    end.setDate(end.getDate() + 2);
+    end.setHours(12, 0, 0, 0);
+    
+    const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    return { startDateBase: start, totalDays: diff };
   }, [tasks, project?.ganttStartDate]);
 
-  const getTimelineDates = () => {
+  const timelineDates = useMemo(() => {
     const dates = [];
-    const base = new Date(startDateBase);
-    base.setHours(0, 0, 0, 0);
-    for (let i = 0; i < timelineDays; i++) {
-      const d = new Date(base);
-      d.setDate(base.getDate() + i);
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(startDateBase);
+      d.setDate(startDateBase.getDate() + i);
       dates.push(d);
     }
     return dates;
-  };
+  }, [startDateBase, totalDays]);
 
-  const timelineDates = getTimelineDates();
+  const monthGroups = useMemo(() => {
+    const groups: { month: string; year: number; days: number }[] = [];
+    timelineDates.forEach(date => {
+      const month = date.toLocaleDateString('pt-BR', { month: 'long' }).toUpperCase();
+      const year = date.getFullYear();
+      const last = groups[groups.length - 1];
+      if (last && last.month === month && last.year === year) {
+        last.days++;
+      } else {
+        groups.push({ month, year, days: 1 });
+      }
+    });
+    return groups;
+  }, [timelineDates]);
 
   type GanttRow = { type: 'section'; id: string; name: string } | { type: 'task'; id: string; task: GanttTask };
 
@@ -665,14 +773,14 @@ export default function GanttChart() {
   }, [tasks]);
 
   const getTaskGridPosition = (task: GanttTask) => {
-    const start = new Date(task.startDate.seconds * 1000);
-    const end = new Date(task.endDate.seconds * 1000);
+    const dS = new Date(task.startDate.seconds * 1000);
+    const dE = new Date(task.endDate.seconds * 1000);
     
-    start.setHours(0,0,0,0);
-    end.setHours(0,0,0,0);
-
-    const diffStart = Math.ceil((start.getTime() - startDateBase.getTime()) / (1000 * 60 * 60 * 24));
-    const duration = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const start = new Date(dS.getUTCFullYear(), dS.getUTCMonth(), dS.getUTCDate(), 12, 0, 0);
+    const end = new Date(dE.getUTCFullYear(), dE.getUTCMonth(), dE.getUTCDate(), 12, 0, 0);
+    
+    const diffStart = Math.round((start.getTime() - startDateBase.getTime()) / (1000 * 60 * 60 * 24));
+    const duration = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
     return {
       startColumn: diffStart + 1,
@@ -687,30 +795,39 @@ export default function GanttChart() {
     await new Promise(r => setTimeout(r, 100));
 
     try {
-      const allStarts = tasks.map(t => new Date(t.startDate.seconds * 1000));
-      const allEnds = tasks.map(t => new Date(t.endDate.seconds * 1000));
+      const allStarts = tasks.map(t => {
+        const d = new Date(t.startDate.seconds * 1000);
+        return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12, 0, 0);
+      });
+      const allEnds = tasks.map(t => {
+        const d = new Date(t.endDate.seconds * 1000);
+        return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12, 0, 0);
+      });
       const minDate = new Date(Math.min(...allStarts.map(d => d.getTime())));
       const maxDate = new Date(Math.max(...allEnds.map(d => d.getTime())));
-      minDate.setDate(minDate.getDate() - 1); minDate.setHours(0,0,0,0);
-      maxDate.setDate(maxDate.getDate() + 2); maxDate.setHours(0,0,0,0);
+      minDate.setHours(12, 0, 0, 0);
+      maxDate.setHours(12, 0, 0, 0);
+      
+      // Buffer of 1 day before and 2 days after
+      minDate.setDate(minDate.getDate() - 1);
+      maxDate.setDate(maxDate.getDate() + 2);
       const totalDays = Math.ceil((maxDate.getTime() - minDate.getTime()) / 86400000);
       const dayDates: Date[] = [];
       for (let i = 0; i < totalDays; i++) { const d = new Date(minDate); d.setDate(minDate.getDate() + i); dayDates.push(d); }
 
       const ROW_H = 32;
-      const LEFT_W = 520;
-      const cellW = Math.max(14, Math.min(28, Math.floor(900 / totalDays)));
+      const LEFT_W = 1000;
+      const cellW = Math.max(16, Math.min(32, Math.floor(2500 / totalDays)));
       const TIMELINE_W = totalDays * cellW;
       const TOTAL_W = LEFT_W + TIMELINE_W + 96;
-      const sBg: Record<string, string> = { pending: '#e5e7eb', in_progress: '#ff7f00', completed: '#10b981', delayed: '#ef4444' };
-      const sFg: Record<string, string> = { pending: '#6b7280', in_progress: '#fff', completed: '#fff', delayed: '#fff' };
-      const sLbl: Record<string, string> = { pending: 'PDT', in_progress: 'AND', completed: 'FTO', delayed: 'ATR' };
+      const sBg: Record<string, string> = { pending: '#e5e7eb', in_progress: '#e5e7eb', completed: '#e5e7eb', delayed: '#e5e7eb' };
+      const sFg: Record<string, string> = { pending: '#6b7280', in_progress: '#6b7280', completed: '#6b7280', delayed: '#6b7280' };
       const MN = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
 
       const container = document.createElement('div');
       container.style.cssText = `position:fixed;left:0;top:0;background:#fff;padding:40px;font-family:system-ui,-apple-system,sans-serif;width:${TOTAL_W}px;box-sizing:border-box;z-index:50;overflow:visible;`;
       document.body.appendChild(container);
-      container.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #ff7f00;"><div><div style="font-size:20px;font-weight:800;color:#111;text-transform:uppercase;letter-spacing:0.1em;">${project?.name || 'Projeto'} — GANTT</div><div style="font-size:10px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:0.15em;margin-top:4px;">Exportado em ${new Date().toLocaleDateString('pt-BR')} • ${tasks.length} funções</div></div></div>`;
+      container.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #ff7f00;"><div><div style="font-size:24px;font-weight:800;color:#111;text-transform:uppercase;letter-spacing:0.1em;">${project?.name || 'Projeto'}</div><div style="font-size:12px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:0.15em;margin-top:4px;">Gráfico de Gantt</div></div></div>`;
 
       const body = document.createElement('div');
       body.style.cssText = 'display:flex;border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;';
@@ -718,7 +835,7 @@ export default function GanttChart() {
       // LEFT PANEL
       const left = document.createElement('div');
       left.style.cssText = `width:${LEFT_W}px;flex-shrink:0;border-right:2px solid #e5e7eb;`;
-      left.innerHTML = `<div style="display:grid;grid-template-columns:30px 1fr 70px 50px 55px;height:${ROW_H*2}px;background:#f9fafb;border-bottom:2px solid #e5e7eb;"><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:8px;font-weight:800;color:#9ca3af;">#</div><div style="padding:4px 8px;display:flex;align-items:center;border-right:1px solid #e5e7eb;font-size:8px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;">FUNÇÃO</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:7px;font-weight:800;color:#9ca3af;">CATEGORIA</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:8px;font-weight:800;color:#9ca3af;">STS</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:#9ca3af;">PROG</div></div>`;
+      left.innerHTML = `<div style="display:grid;grid-template-columns:40px 1fr 120px 160px 140px 100px 100px 70px;height:${ROW_H*2}px;background:#f9fafb;border-bottom:2px solid #e5e7eb;"><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:8px;font-weight:800;color:#9ca3af;">#</div><div style="padding:4px 8px;display:flex;align-items:center;border-right:1px solid #e5e7eb;font-size:8px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;">FUNÇÃO</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:7px;font-weight:800;color:#9ca3af;">CATEGORIA</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:7px;font-weight:800;color:#9ca3af;">DEPENDÊNCIAS</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:7px;font-weight:800;color:#9ca3af;">RESPONSÁVEIS</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:7px;font-weight:800;color:#9ca3af;">INÍCIO</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:7px;font-weight:800;color:#9ca3af;">FIM</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:#9ca3af;">PROG</div></div>`;
 
       let tIdx = 0;
       rows.forEach(row => {
@@ -732,9 +849,17 @@ export default function GanttChart() {
         const t = row.task;
         const bg = tIdx % 2 === 0 ? '#fafafa' : '#fff';
         const pc = t.progress >= 100 ? '#10b981' : t.progress > 0 ? '#ff7f00' : '#9ca3af';
+        const dS_row = new Date(t.startDate.seconds * 1000);
+        const startStr = new Date(dS_row.getUTCFullYear(), dS_row.getUTCMonth(), dS_row.getUTCDate()).toLocaleDateString('pt-BR');
+        const dE_row = new Date(t.endDate.seconds * 1000);
+        const endStr = new Date(dE_row.getUTCFullYear(), dE_row.getUTCMonth(), dE_row.getUTCDate()).toLocaleDateString('pt-BR');
+        const respNames = (t.assignedTo || []).map(uid => {
+          const p = participants.find(part => part.id === uid);
+          return p ? p.name.split(' ')[0] : '?';
+        }).join(', ');
         const r = document.createElement('div');
-        r.style.cssText = `display:grid;grid-template-columns:30px 1fr 70px 50px 55px;height:${ROW_H}px;background:${bg};border-bottom:1px solid #f3f4f6;`;
-        r.innerHTML = `<div style="padding:2px 4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #f0f0f0;font-size:8px;font-weight:700;color:#bbb;">${tIdx}</div><div style="padding:2px 8px;display:flex;align-items:center;border-right:1px solid #f0f0f0;font-size:9px;font-weight:700;color:#111;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${t.title}</div><div style="padding:2px 4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #f0f0f0;font-size:7px;font-weight:700;color:#6b7280;text-transform:uppercase;">${t.category||'-'}</div><div style="padding:2px;display:flex;align-items:center;justify-content:center;border-right:1px solid #f0f0f0;"><span style="font-size:7px;font-weight:800;color:${sFg[t.status]};background:${sBg[t.status]};padding:1px 4px;border-radius:3px;">${sLbl[t.status]}</span></div><div style="padding:2px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:${pc};">${t.progress}%</div>`;
+        r.style.cssText = `display:grid;grid-template-columns:40px 1fr 120px 160px 140px 100px 100px 70px;height:${ROW_H}px;background:${bg};border-bottom:1px solid #f3f4f6;`;
+        r.innerHTML = `<div style="padding:2px 4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #f0f0f0;font-size:8px;font-weight:700;color:#bbb;">${tIdx}</div><div style="padding:2px 8px;display:flex;align-items:center;border-right:1px solid #f0f0f0;font-size:9px;font-weight:700;color:#111;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${t.title}</div><div style="padding:2px 4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #f0f0f0;font-size:7px;font-weight:700;color:#6b7280;text-transform:uppercase;">${t.category||'-'}</div><div style="padding:2px 4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #f0f0f0;font-size:8px;font-weight:700;color:#6b7280;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${t.dependencies||'-'}</div><div style="padding:2px 4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #f0f0f0;font-size:8px;font-weight:700;color:#6b7280;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;" title="${respNames}">${respNames||'-'}</div><div style="padding:2px 4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #f0f0f0;font-size:8px;font-weight:700;color:#6b7280;">${startStr}</div><div style="padding:2px 4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #f0f0f0;font-size:8px;font-weight:700;color:#6b7280;">${endStr}</div><div style="padding:2px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:${pc};">${t.progress}%</div>`;
         left.appendChild(r);
       });
 
@@ -765,8 +890,10 @@ export default function GanttChart() {
         dayDates.forEach(d => { const c = document.createElement('div'); const w=[0,6].includes(d.getDay()); c.style.cssText = `width:${cellW}px;height:100%;border-right:1px solid ${w?'#e9e9e9':'#f5f5f5'};flex-shrink:0;${w&&row.type!=='section'?'background:#fafafa;':''}`; bR.appendChild(c); });
         if (row.type === 'task') {
           const t = row.task;
-          const ts = new Date(t.startDate.seconds*1000); ts.setHours(0,0,0,0);
-          const te = new Date(t.endDate.seconds*1000); te.setHours(0,0,0,0);
+          const dS = new Date(t.startDate.seconds*1000);
+          const ts = new Date(dS.getUTCFullYear(), dS.getUTCMonth(), dS.getUTCDate(), 12, 0, 0);
+          const dE = new Date(t.endDate.seconds*1000);
+          const te = new Date(dE.getUTCFullYear(), dE.getUTCMonth(), dE.getUTCDate(), 12, 0, 0);
           const oD = Math.max(0, Math.floor((ts.getTime()-minDate.getTime())/86400000));
           const sD = Math.max(1, Math.ceil((te.getTime()-ts.getTime())/86400000)+1);
           const bL = oD*cellW+2, bW = Math.max(cellW-4, sD*cellW-4);
@@ -790,14 +917,24 @@ export default function GanttChart() {
 
       await new Promise(r => setTimeout(r, 500));
       const dataUrl = await toPng(container, { cacheBust: true, backgroundColor: '#ffffff', pixelRatio: 2 });
-      const pW = 841.89, pH = 595.28, mg = 24;
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-      const aW = pW-mg*2, aH = pH-mg*2;
-      const ip = pdf.getImageProperties(dataUrl);
-      const dW = aW, dH = dW*(ip.height/ip.width);
-      let hL = dH, p = mg;
-      pdf.setFillColor(255,255,255); pdf.rect(0,0,pW,pH,'F'); pdf.addImage(dataUrl,'PNG',mg,p,dW,dH); hL -= aH;
-      while (hL > 0) { p -= aH; pdf.addPage(); pdf.setFillColor(255,255,255); pdf.rect(0,0,pW,pH,'F'); pdf.addImage(dataUrl,'PNG',mg,p,dW,dH); hL -= aH; }
+      
+      // Setup dynamic single page PDF
+      const tempPdf = new jsPDF();
+      const ip = tempPdf.getImageProperties(dataUrl);
+      const mg = 40; // margin
+      const pdfWidth = 3840; // Extremely high resolution 4K width
+      const pdfHeight = (pdfWidth - mg * 2) * (ip.height / ip.width) + mg * 2;
+      
+      const pdf = new jsPDF({ 
+        orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait', 
+        unit: 'pt', 
+        format: [pdfWidth, pdfHeight] 
+      });
+      
+      pdf.setFillColor(255, 255, 255); 
+      pdf.rect(0, 0, pdfWidth, pdfHeight, 'F'); 
+      pdf.addImage(dataUrl, 'PNG', mg, mg, pdfWidth - mg * 2, pdfHeight - mg * 2); 
+      
       pdf.save(`gantt-${(project?.name||'projeto').replace(/\s+/g,'-')}-${new Date().toISOString().substring(0,10)}.pdf`);
       document.body.removeChild(container);
     } catch (err) {
@@ -875,7 +1012,7 @@ export default function GanttChart() {
         </header>
 
         {/* --- Subheader --- */}
-        <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-4 flex items-center justify-between shrink-0 shadow-sm z-30 min-h-[68px]">
+        <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-4 flex items-center justify-between shrink-0 shadow-sm z-50 min-h-[68px]">
           <div className="flex items-center gap-2 sm:gap-6 overflow-x-auto no-scrollbar flex-1 mr-2">
             <div className="hidden sm:flex items-center gap-2">
               <BarChart className="w-5 h-5 text-[#ff7f00]" />
@@ -904,7 +1041,52 @@ export default function GanttChart() {
             </div>
           </div>
 
-          <div className="hidden sm:flex gap-3">
+          <div className="hidden sm:flex gap-3 items-center">
+             <input
+               type="file"
+               ref={importInputRef}
+               accept=".json"
+               className="hidden"
+               onChange={handleImportJSON}
+             />
+             <div className="relative">
+                <button 
+                  onClick={() => setIsJSONMenuOpen(!isJSONMenuOpen)}
+                  className="bg-white text-gray-700 border border-gray-300 px-3 py-1.5 flex items-center justify-center transition-all font-bold uppercase tracking-widest text-[10px] rounded-lg hover:bg-gray-50 active:scale-95"
+                  title="Opções JSON (Importar/Exportar)"
+                >
+                  <FileJson className="w-3.5 h-3.5" />
+                </button>
+                <AnimatePresence>
+                  {isJSONMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-[60]" onClick={() => setIsJSONMenuOpen(false)} />
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="absolute top-full mt-2 right-0 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-[70] overflow-hidden"
+                      >
+                        <button 
+                          onClick={() => { importInputRef.current?.click(); setIsJSONMenuOpen(false); }}
+                          className="w-full px-4 py-3 text-left text-[10px] font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-3 transition-colors border-b border-gray-100 uppercase tracking-widest"
+                        >
+                          <Upload className="w-3.5 h-3.5 text-gray-400" />
+                          Importar JSON
+                        </button>
+                        <button 
+                          onClick={() => { handleExportJSON(); setIsJSONMenuOpen(false); }}
+                          disabled={tasks.length === 0}
+                          className="w-full px-4 py-3 text-left text-[10px] font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-3 transition-colors disabled:opacity-50 uppercase tracking-widest"
+                        >
+                          <FileJson className="w-3.5 h-3.5 text-gray-400" />
+                          Exportar JSON
+                        </button>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
              <button 
                onClick={handleExportPDF}
                disabled={isExporting || tasks.length === 0}
@@ -941,27 +1123,26 @@ export default function GanttChart() {
         </div>
 
         {/* --- Gantt Body --- */}
-        <div className={clsx("flex-1 custom-scrollbar relative", isDesktop ? "flex overflow-hidden" : "overflow-auto bg-gray-50/10")}>
-          <div className={clsx("relative", isDesktop ? "contents" : "flex min-w-max min-h-full")}>
+        <div className="flex-1 custom-scrollbar relative overflow-y-auto overflow-x-hidden bg-white">
+          <div className="flex min-h-full">
             
             {/* List Sidebar */}
             <div 
-              className={clsx("flex flex-col bg-white shrink-0 border-r border-gray-200", isDesktop ? "shadow-sm z-10 overflow-hidden relative" : "z-40 sticky left-0 shadow-[4px_0_12px_rgba(0,0,0,0.02)]")}
+              className="flex flex-col bg-white shrink-0 border-r border-gray-200 overflow-x-auto custom-scrollbar"
               style={{ width: sidebarWidth, minWidth: 400, maxWidth: 1200 }}
             >
-              <div className={clsx("flex flex-col h-full", isDesktop ? "min-w-[750px] overflow-hidden" : "w-full")}>
-                <div className={clsx("grid grid-cols-[minmax(0,1fr)_100px_100px_90px_60px_70px_70px_60px] bg-white border-b border-gray-200 uppercase text-[10px] font-bold text-gray-400 tracking-widest shrink-0", isDesktop ? "" : "sticky top-0 z-30 h-[49px]")}>
+              <div className="flex flex-col h-auto min-w-[800px]">
+                <div className="grid grid-cols-[minmax(250px,1fr)_90px_120px_110px_85px_85px_60px] bg-white border-b border-gray-200 uppercase text-[10px] font-bold text-gray-400 tracking-widest shrink-0 sticky top-0 z-40 h-[68px]">
                   <div className="p-3 border-r border-gray-100 flex items-center">Função / Descrição</div>
                   <div className="p-3 border-r border-gray-100 flex items-center">Categoria</div>
                   <div className="p-3 border-r border-gray-100 flex items-center">Dependências</div>
-                  <div className="p-3 border-r border-gray-100 flex items-center justify-center">Resp.</div>
-                  <div className="p-3 border-r border-gray-100 flex items-center justify-center">Status</div>
+                  <div className="p-3 border-r border-gray-100 flex items-center justify-center">Responsáveis</div>
                   <div className="p-3 border-r border-gray-100 flex items-center justify-center">Início</div>
                   <div className="p-3 border-r border-gray-100 flex items-center justify-center">Fim</div>
                   <div className="p-3 flex items-center justify-center">Prog.</div>
                 </div>
                 
-                <div className={clsx("bg-white", isDesktop ? "flex-1 overflow-x-auto overflow-y-auto custom-scrollbar" : "flex flex-col w-full")}>
+                <div className="bg-white flex flex-col w-full">
                   {rows.length > 0 ? (
                     rows.map(row => {
                       if (row.type === 'section') {
@@ -973,62 +1154,60 @@ export default function GanttChart() {
                       }
                       const task = row.task;
                       return (
-                        <div key={task.id} className="grid grid-cols-[minmax(0,1fr)_100px_100px_90px_60px_70px_70px_60px] w-full border-b border-gray-100 group hover:bg-gray-50/50 transition-colors h-[60px] relative bg-white shrink-0">
+                        <div key={task.id} className="grid grid-cols-[minmax(250px,1fr)_90px_120px_110px_85px_85px_60px] w-full border-b border-gray-100 group hover:bg-gray-50/50 transition-colors h-[60px] relative bg-white shrink-0">
                           <div className="px-3 py-2 border-r border-gray-100 overflow-hidden flex flex-col justify-center relative">
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-bold text-gray-800 uppercase truncate pr-16">{task.title}</span>
-                              <div className="flex bg-white/80 rounded px-1 absolute right-2 top-1/2 -translate-y-1/2 shadow-sm border border-gray-200/50 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => { setEditingTask(task); setIsTaskModalOpen(true); }} className="p-1.5 hover:text-[#ff7f00] text-gray-400 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => setTaskToDelete(task.id)} className="p-1.5 hover:text-red-600 text-gray-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={(e) => { e.stopPropagation(); setEditingTask(task); setIsTaskModalOpen(true); }} className="p-1.5 hover:bg-gray-100 text-gray-400 hover:text-[#ff7f00] rounded-md transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
+                                <button onClick={(e) => { e.stopPropagation(); setTaskToDelete(task.id); }} className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-md transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                               </div>
                             </div>
                           </div>
 
-                          <div className="p-2 border-r border-gray-100 flex items-center overflow-hidden">
-                            <span className="text-[9px] font-bold text-gray-500 uppercase truncate">{task.category || '-'}</span>
-                          </div>
-
-                          <div className="p-2 border-r border-gray-100 flex items-center overflow-hidden">
-                            <span className="text-[9px] font-bold text-gray-500 uppercase truncate" title={(task.dependencies as unknown as string) || ''}>{(task.dependencies as unknown as string) || '-'}</span>
+                          <div className="p-2 border-r border-gray-100 flex items-center justify-center overflow-hidden">
+                            <span className="text-[9px] font-bold text-gray-500 uppercase truncate">
+                              {task.category || '-'}
+                            </span>
                           </div>
 
                           <div className="p-2 border-r border-gray-100 flex items-center justify-center overflow-hidden">
-                            <div className="flex -space-x-1 items-center">
-                              {task.assignedTo?.slice(0, 3).map(id => {
-                                const p = participants.find(part => part.id === id);
-                                if (!p) return null;
-                                return p.photoURL ? (
-                                  <img key={id} src={p.photoURL} className="w-4 h-4 rounded-full border border-white" title={p.name} />
-                                ) : (
-                                  <div key={id} className="w-4 h-4 rounded-full border border-white flex items-center justify-center text-[7px] font-bold bg-gray-100 text-gray-600" title={p.name}>{p.name.charAt(0)}</div>
-                                );
-                              })}
+                            <span className="text-[9px] font-bold text-gray-500 truncate w-full text-center">
+                              {task.dependencies || '-'}
+                            </span>
+                          </div>
+
+                          <div className="p-2 border-r border-gray-100 flex items-center justify-center overflow-hidden">
+                            <div className="flex -space-x-1.5 flex-wrap justify-center">
+                               {task.assignedTo?.map((uid, i) => {
+                                 const p = participants.find(part => part.id === uid);
+                                 if (!p) return null;
+                                 return p.photoURL ? (
+                                   <img key={i} src={p.photoURL} className="w-5 h-5 rounded-full border border-white object-cover shadow-sm" title={p.name} />
+                                 ) : (
+                                   <div key={i} className="w-5 h-5 rounded-full border border-white bg-gray-100 flex items-center justify-center text-[7px] font-bold text-gray-600 shadow-sm" title={p.name}>
+                                     {p.name.charAt(0)}
+                                   </div>
+                                 );
+                               })}
                             </div>
                           </div>
 
                           <div className="p-2 border-r border-gray-100 flex items-center justify-center overflow-hidden">
-                            <span className={clsx(
-                              "text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap",
-                              task.status === 'completed' ? "bg-emerald-50 text-emerald-600" :
-                              task.status === 'in_progress' ? "bg-orange-50 text-[#ff7f00]" :
-                              task.status === 'delayed' ? "bg-red-50 text-red-600" :
-                              "bg-gray-100 text-gray-500"
-                            )}>
-                              {task.status === 'completed' ? 'FTO' :
-                               task.status === 'in_progress' ? 'AND' :
-                               task.status === 'delayed' ? 'ATR' : 'PDT'}
+                            <span className="text-[9px] font-bold text-gray-600 whitespace-nowrap">
+                              {(() => {
+                                const d = new Date(task.startDate.seconds * 1000);
+                                return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()).toLocaleDateString('pt-BR');
+                              })()}
                             </span>
                           </div>
 
                           <div className="p-2 border-r border-gray-100 flex items-center justify-center overflow-hidden">
                             <span className="text-[9px] font-bold text-gray-600 whitespace-nowrap">
-                              {new Date(task.startDate.seconds * 1000).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                            </span>
-                          </div>
-                          
-                          <div className="p-2 border-r border-gray-100 flex items-center justify-center overflow-hidden">
-                            <span className="text-[9px] font-bold text-gray-600 whitespace-nowrap">
-                              {new Date(task.endDate.seconds * 1000).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                              {(() => {
+                                const d = new Date(task.endDate.seconds * 1000);
+                                return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()).toLocaleDateString('pt-BR');
+                              })()}
                             </span>
                           </div>
 
@@ -1055,7 +1234,7 @@ export default function GanttChart() {
             {/* Drag Resizer */}
             {isDesktop && (
               <div 
-                 className="w-[3px] hover:w-1.5 bg-gray-200 hover:bg-[#ff7f00] z-20 shrink-0 transition-all cursor-col-resize active:bg-[#ff7f00]"
+                 className="w-1 bg-gray-100 hover:bg-[#ff7f00] z-50 shrink-0 transition-all cursor-col-resize active:bg-[#ff7f00]"
                  onMouseDown={(e) => {
                    const startX = e.clientX;
                    const startWidth = sidebarWidth;
@@ -1077,44 +1256,66 @@ export default function GanttChart() {
               />
             )}
 
-            {/* Timeline View */}
-            <div 
-              ref={timelineContainerRef}
-              className={clsx("relative", isDesktop ? "flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar bg-gray-50/20" : "flex flex-col")}
-              style={isDesktop ? {} : { width: `${timelineDates.length * cellWidth}px` }}
-            >
+            {/* Timeline Column */}
+            <div className="flex-1 flex flex-col min-w-0 bg-gray-50/20">
+              {/* Timeline Header Wrapper */}
               <div 
-                className={clsx(isDesktop ? "min-w-max h-full flex flex-col" : "flex flex-col relative h-full")}
-                style={isDesktop ? { width: `${timelineDates.length * cellWidth}px` } : {}}
+                ref={timelineHeaderRef}
+                className="sticky top-0 z-40 bg-white border-b border-gray-200 overflow-hidden shrink-0"
               >
-                {/* Timeline Header (Dates) */}
-                <div className={clsx("h-[49px] flex bg-white border-b border-gray-200 shrink-0", isDesktop ? "" : "sticky top-0 z-30")}>
-                  {timelineDates.map((date, idx) => (
-                    <div 
-                      key={idx} 
-                      className={clsx(
-                        "flex flex-col items-center justify-center border-r border-gray-100 text-[9px] group transition-colors",
-                        [0, 6].includes(date.getDay()) ? "bg-gray-50/50" : "hover:bg-orange-50/30"
-                      )}
-                      style={{ width: `${cellWidth}px` }}
-                    >
-                      <span className="font-bold text-gray-300 uppercase group-hover:text-[#ff7f00] transition-colors">
-                        {date.toLocaleDateString('pt-BR', { weekday: 'short' }).slice(0, 3)}
-                      </span>
-                      <span className="font-bold text-gray-900 group-hover:text-[#ff7f00] transition-colors">{date.getDate()}</span>
-                    </div>
-                  ))}
+                <div style={{ width: `${timelineDates.length * cellWidth}px` }}>
+                  {/* Month Row */}
+                  <div className="flex h-8 border-b border-gray-100">
+                    {monthGroups.map((group, idx) => (
+                      <div 
+                        key={idx}
+                        className="flex-shrink-0 border-r border-gray-100 flex items-center justify-center text-[10px] font-black text-gray-500 tracking-[0.2em] uppercase bg-gray-50/50"
+                        style={{ width: `${group.days * cellWidth}px` }}
+                      >
+                        {group.month} {group.year}
+                      </div>
+                    ))}
+                  </div>
+                  {/* Day Row */}
+                  <div className="flex h-9">
+                    {timelineDates.map((date, idx) => (
+                      <div 
+                        key={idx} 
+                        className={clsx(
+                          "flex flex-col items-center justify-center border-r border-gray-100 group transition-colors overflow-hidden shrink-0",
+                          [0, 6].includes(date.getDay()) ? "bg-gray-50/30" : "hover:bg-orange-50/30"
+                        )}
+                        style={{ width: `${cellWidth}px` }}
+                      >
+                        <span className={clsx("font-bold text-gray-400 uppercase", cellWidth < 40 ? "text-[6px]" : "text-[8px]")}>
+                          {date.toLocaleDateString('pt-BR', { weekday: 'short' }).slice(0, 3)}
+                        </span>
+                        <span className={clsx("font-bold text-gray-900", cellWidth < 40 ? "text-[8px]" : "text-[10px]")}>
+                          {date.getDate()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+              </div>
+
+              {/* Timeline Body Wrapper */}
+              <div 
+                ref={timelineBodyRef}
+                onScroll={handleTimelineScroll}
+                className="flex-1 overflow-x-auto custom-scrollbar flex flex-col"
+              >
+                <div style={{ width: `${timelineDates.length * cellWidth}px` }} className="relative flex-1 flex flex-col">
 
                 {/* Chart Grid Lines & Task Bars */}
-                <div className={clsx("relative", isDesktop ? "flex-1 overflow-y-auto custom-scrollbar" : "flex-1 flex flex-col")}>
+                <div className="relative flex-1 flex flex-col">
                   {/* Background Grid */}
                   <div className="absolute inset-0 flex pointer-events-none z-0">
                     {timelineDates.map((date, idx) => (
                       <div 
                         key={idx} 
                         className={clsx(
-                          "h-full border-r border-gray-100/50 transition-colors",
+                          "h-full border-r border-gray-100/50 transition-colors shrink-0",
                           [0, 6].includes(date.getDay()) ? "bg-gray-100/10" : ""
                         )}
                         style={{ width: `${cellWidth}px` }}
@@ -1140,13 +1341,7 @@ export default function GanttChart() {
                            <motion.div
                              initial={{ opacity: 0, x: -20 }}
                              animate={{ opacity: 1, x: 0 }}
-                             className={clsx(
-                               "absolute top-1/2 -translate-y-1/2 h-[34px] rounded-md shadow-sm border overflow-hidden flex flex-col justify-end transition-all cursor-pointer",
-                               task.status === 'completed' ? "bg-emerald-500 border-emerald-400" :
-                               task.status === 'delayed' ? "bg-red-500 border-red-400" :
-                               task.status === 'in_progress' ? "bg-[#ff7f00] border-orange-400" :
-                               "bg-gray-200 border-gray-300 text-gray-500"
-                             )}
+                             className="absolute top-1/2 -translate-y-1/2 h-[34px] rounded-md shadow-sm border overflow-hidden flex flex-col justify-end transition-all cursor-pointer bg-gray-200 border-gray-300 text-gray-500"
                              style={{
                                left: `${(pos.startColumn - 1) * cellWidth + 8}px`,
                                width: `${pos.span * cellWidth - 16}px`
@@ -1172,7 +1367,8 @@ export default function GanttChart() {
             </div>
           </div>
         </div>
-      </main>
+      </div>
+    </main>
 
       {/* --- Modals --- */}
       <AnimatePresence>
@@ -1317,6 +1513,48 @@ export default function GanttChart() {
                   </div>
                   Membros & Stakeholders
                 </button>
+
+                <div className="flex flex-col gap-2">
+                  <button 
+                    onClick={() => setMobileJSONOpen(!mobileJSONOpen)}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 text-gray-700 rounded-2xl border border-gray-100 font-bold uppercase tracking-widest text-xs active:scale-[0.98] transition-all"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-white text-gray-400 border border-gray-200 flex items-center justify-center rounded-xl">
+                        <FileJson className="w-6 h-6" />
+                      </div>
+                      DADOS JSON
+                    </div>
+                    <ChevronDown className={clsx("w-5 h-5 transition-transform", mobileJSONOpen && "rotate-180")} />
+                  </button>
+                  
+                  <AnimatePresence>
+                    {mobileJSONOpen && (
+                      <motion.div 
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden flex flex-col gap-2 px-2"
+                      >
+                        <button 
+                          onClick={() => { setShowMobileActions(false); handleExportJSON(); }}
+                          disabled={tasks.length === 0}
+                          className="w-full flex items-center gap-4 p-3 bg-white text-gray-600 rounded-xl border border-gray-100 font-bold uppercase tracking-widest text-[10px] active:scale-[0.98] transition-all disabled:opacity-50"
+                        >
+                          <FileJson className="w-4 h-4 text-gray-400" />
+                          Exportar JSON
+                        </button>
+                        <button 
+                          onClick={() => { setShowMobileActions(false); importInputRef.current?.click(); }}
+                          className="w-full flex items-center gap-4 p-3 bg-white text-gray-600 rounded-xl border border-gray-100 font-bold uppercase tracking-widest text-[10px] active:scale-[0.98] transition-all"
+                        >
+                          <Upload className="w-4 h-4 text-gray-400" />
+                          Importar JSON
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
               <button 
