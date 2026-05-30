@@ -178,11 +178,11 @@ service cloud.firestore {
              (!( 'description' in data ) || data.description is string) &&
              (!( 'section' in data ) || data.section is string) &&
              (!( 'category' in data ) || data.category is string) &&
-             (!( 'dependencies' in data ) || data.dependencies is string) &&
+             (!( 'dependencies' in data ) || data.dependencies is list) &&
              (!( 'assignedTo' in data ) || data.assignedTo is list) &&
              data.startDate is timestamp &&
              data.endDate is timestamp &&
-             data.status in ['pending', 'in_progress', 'completed', 'delayed'] &&
+             (!( 'status' in data ) || data.status in ['pending', 'in_progress', 'completed', 'delayed']) &&
              data.progress is number &&
              (!( 'color' in data ) || data.color is string) &&
              data.order is number &&

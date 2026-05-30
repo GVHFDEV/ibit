@@ -36,13 +36,18 @@ import {
   UserPlus,
   ArrowLeft,
   CheckCircle2,
-  Info
+  Info,
+  Printer
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
 import ProjectSettingsModal from './ProjectSettingsModal';
 import { handleFirestoreError, OperationType } from '../utils/errorHandlers';
 import { motion, AnimatePresence } from 'motion/react';
+import { jsPDF } from 'jspdf';
+import { toPng } from 'html-to-image';
+// @ts-ignore
+import logoIbit from '../media/ibitlogo.svg';
 
 export default function RACIMatrix() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -72,6 +77,7 @@ export default function RACIMatrix() {
   const [editingTask, setEditingTask] = useState<RACITask | null>(null);
   const [editingStakeholder, setEditingStakeholder] = useState<RACIStakeholder | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'matrix' | 'task' | 'stakeholder'; name: string } | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   // 1. Fetch Project Data
   useEffect(() => {
@@ -277,6 +283,155 @@ export default function RACIMatrix() {
     photoURL: s.userId ? projectMembers.find(m => m.uid === s.userId)?.photoURL : undefined
   }));
 
+  const handleExportPDF = async () => {
+    if (isExporting || tasks.length === 0) return;
+    setIsExporting(true);
+    await new Promise(r => setTimeout(r, 100));
+
+    try {
+      const COL_TASK_W = 350;
+      const COL_PART_W = 120;
+      const paddingX = 80;
+      const tableW = COL_TASK_W + participants.length * COL_PART_W;
+      const TOTAL_W = Math.max(1000, tableW + paddingX);
+
+      const container = document.createElement('div');
+      container.style.cssText = `position:fixed;left:0;top:0;background:#fff;padding:40px;font-family:system-ui,-apple-system,sans-serif;width:${TOTAL_W}px;box-sizing:border-box;z-index:50;overflow:visible;`;
+      document.body.appendChild(container);
+
+      container.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #ff7f00;">
+          <div>
+            <div style="font-size:24px;font-weight:800;color:#111;text-transform:uppercase;letter-spacing:0.1em;">${project?.name || 'Projeto'}</div>
+            <div style="font-size:12px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:0.15em;margin-top:4px;">Matriz RACI - ${currentMatrix?.name || 'Matriz'}</div>
+          </div>
+        </div>
+      `;
+
+      const tableWrapper = document.createElement('div');
+      tableWrapper.style.cssText = 'border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;background:#fff;';
+
+      const tableEl = document.createElement('table');
+      tableEl.style.cssText = 'width:100%;border-collapse:collapse;';
+
+      let headerHTML = `
+        <thead>
+          <tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb;">
+            <th style="width:${COL_TASK_W}px;padding:16px;text-align:left;border-right:1px solid #e5e7eb;font-size:10px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:0.15em;">
+              TAREFAS / ATIVIDADES
+            </th>
+      `;
+
+      participants.forEach(p => {
+        headerHTML += `
+          <th style="width:${COL_PART_W}px;padding:16px;text-align:center;border-right:1px solid #e5e7eb;vertical-align:middle;">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+              <div style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;border:2px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,0.08);${p.isUser ? 'background:#fff7ed;color:#ff7f00;' : 'background:#fef2f2;color:#f94200;'}">
+                ${p.name.charAt(0).toUpperCase()}
+              </div>
+              <span style="font-size:10px;font-weight:800;color:#1f2937;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${COL_PART_W - 16}px;" title="${p.name}">
+                ${p.name.split(' ')[0]}
+              </span>
+              <span style="font-size:7px;font-weight:900;letter-spacing:0.05em;padding:2px 6px;border-radius:9999px;text-transform:uppercase;${p.isUser ? 'background:#ffedd5;color:#ff7f00;' : 'background:#fee2e2;color:#f94200;'}">
+                ${p.isUser ? 'Membro' : 'Externo'}
+              </span>
+            </div>
+          </th>
+        `;
+      });
+      headerHTML += `</tr></thead>`;
+
+      let bodyHTML = `<tbody>`;
+      tasks.forEach((task, tIdx) => {
+        const rowBg = tIdx % 2 === 0 ? '#ffffff' : '#fafafa';
+        bodyHTML += `
+          <tr style="background:${rowBg};border-bottom:1px solid #f3f4f6;">
+            <td style="padding:16px;border-right:1px solid #f3f4f6;font-size:12px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.02em;line-height:1.4;">
+              ${task.title}
+            </td>
+        `;
+
+        participants.forEach(p => {
+          const role = getRole(task.id, p.id);
+          bodyHTML += `
+            <td style="padding:12px;text-align:center;border-right:1px solid #f3f4f6;vertical-align:middle;">
+              <div style="margin:0 auto;width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:16px;${!role ? 'color:#e5e7eb;' : 'background:#ffffff;border:2px solid #e5e7eb;color:#111827;box-shadow:0 1px 2px rgba(0,0,0,0.05);'}">
+                ${role || '-'}
+              </div>
+            </td>
+          `;
+        });
+        bodyHTML += `</tr>`;
+      });
+      bodyHTML += `</tbody>`;
+
+      tableEl.innerHTML = headerHTML + bodyHTML;
+      tableWrapper.appendChild(tableEl);
+      container.appendChild(tableWrapper);
+
+      const legend = document.createElement('div');
+      legend.style.cssText = 'display:flex;justify-content:center;gap:32px;flex-wrap:wrap;margin-top:32px;padding-top:20px;border-top:1px solid #e5e7eb;';
+      legend.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:24px;height:24px;border-radius:6px;background:#ffffff;border:1px solid #e5e7eb;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:10px;color:#111827;box-shadow:0 1px 2px rgba(0,0,0,0.05);">R</span>
+          <span style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;">Responsável</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:24px;height:24px;border-radius:6px;background:#ffffff;border:1px solid #e5e7eb;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:10px;color:#111827;box-shadow:0 1px 2px rgba(0,0,0,0.05);">A</span>
+          <span style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;">Autoridade</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:24px;height:24px;border-radius:6px;background:#ffffff;border:1px solid #e5e7eb;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:10px;color:#111827;box-shadow:0 1px 2px rgba(0,0,0,0.05);">C</span>
+          <span style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;">Consultado</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:24px;height:24px;border-radius:6px;background:#ffffff;border:1px solid #e5e7eb;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:10px;color:#111827;box-shadow:0 1px 2px rgba(0,0,0,0.05);">I</span>
+          <span style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;">Informado</span>
+        </div>
+      `;
+      container.appendChild(legend);
+
+      const footer = document.createElement('div');
+      footer.style.cssText = 'display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;';
+      footer.innerHTML = `<span style="font-size:10px;color:#9ca3af;font-weight:500;">Matriz RACI exportada da plataforma IBIT em ${new Date().toLocaleDateString('pt-BR')}</span>`;
+      const fLogo = new window.Image();
+      fLogo.src = logoIbit;
+      fLogo.style.cssText = 'height:30px;object-fit:contain;';
+      footer.appendChild(fLogo);
+      container.appendChild(footer);
+
+      await new Promise(r => setTimeout(r, 500));
+      const dataUrl = await toPng(container, { cacheBust: true, backgroundColor: '#ffffff', pixelRatio: 2 });
+
+      const tempPdf = new jsPDF();
+      const ip = tempPdf.getImageProperties(dataUrl);
+      const mg = 40;
+      const pdfWidth = 3840;
+      const pdfHeight = (pdfWidth - mg * 2) * (ip.height / ip.width) + mg * 2;
+
+      const pdf = new jsPDF({
+        orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
+        unit: 'pt',
+        format: [pdfWidth, pdfHeight]
+      });
+
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(0, 0, pdfWidth, pdfHeight, 'F');
+      pdf.addImage(dataUrl, 'PNG', mg, mg, pdfWidth - mg * 2, pdfHeight - mg * 2);
+
+      const matrixFileName = (currentMatrix?.name || 'matriz').replace(/\s+/g, '-');
+      const projectNameStr = (project?.name || 'projeto').replace(/\s+/g, '-');
+      pdf.save(`raci-${projectNameStr}-${matrixFileName}-${new Date().toISOString().substring(0, 10)}.pdf`);
+
+      document.body.removeChild(container);
+    } catch (err) {
+      console.error('[RACI PDF Export] Error:', err);
+      alert('Erro ao exportar PDF. Tente novamente.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   if (loading || !project) {
     return (
       <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">
@@ -370,6 +525,15 @@ export default function RACIMatrix() {
           <div className="flex gap-2 sm:gap-3">
             {currentMatrixId ? (
               <>
+                <button 
+                  onClick={handleExportPDF}
+                  disabled={isExporting || tasks.length === 0}
+                  className="bg-white text-gray-700 border border-gray-300 px-3 py-2 flex items-center justify-center gap-2 transition-all font-bold uppercase tracking-widest text-[9px] sm:text-[10px] rounded-lg hover:bg-gray-50 active:scale-95 disabled:opacity-50 flex-1 sm:flex-none"
+                  title="Exportar PDF"
+                >
+                  {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin text-[#ff7f00]" /> : <Printer className="w-3.5 h-3.5" />}
+                  EXPORTAR PDF
+                </button>
                 <button 
                   onClick={() => { setEditingTask(null); setIsTaskModalOpen(true); }}
                   className="bg-white text-gray-700 border border-gray-300 px-3 py-2 flex items-center justify-center gap-2 transition-all font-bold uppercase tracking-widest text-[9px] sm:text-[10px] rounded-lg hover:bg-gray-50 active:scale-95 flex-1 sm:flex-none"
@@ -656,6 +820,24 @@ export default function RACIMatrix() {
       <AnimatePresence>
         {isProfileOpen && (
           <UserProfileModal onClose={() => setIsProfileOpen(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Exporting Overlay */}
+      <AnimatePresence>
+        {isExporting && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center gap-6"
+          >
+            <Loader2 className="w-12 h-12 text-[#ff7f00] animate-spin" />
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-gray-900 tracking-widest uppercase mb-2">Exportando PDF</h2>
+              <p className="text-sm text-gray-500 font-medium">Gerando matriz de responsabilidades completa...</p>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

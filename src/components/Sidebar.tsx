@@ -74,11 +74,11 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
       </div>
 
       <div className="flex-1 p-4 overflow-y-auto">
-        <nav className="space-y-2">
+        <nav className="space-y-3">
           {!isProjectView ? (
             <Link
               to="/dashboard"
-              className={`flex items-center gap-3 px-4 py-3 font-bold uppercase tracking-wider text-sm rounded-lg transition-colors ${location.pathname === '/dashboard'
+              className={`flex items-center gap-3 px-4 py-3.5 font-bold uppercase tracking-wider text-sm rounded-lg transition-colors ${location.pathname === '/dashboard'
                 ? 'bg-orange-50 text-[#ff7f00]'
                 : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                 } ${isCollapsed ? 'justify-center px-0' : ''}`}
@@ -91,7 +91,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
             <>
               <Link
                 to="/dashboard"
-                className={`flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-gray-900 hover:bg-gray-50 font-bold tracking-wider text-sm rounded-lg transition-colors mb-2 ${isCollapsed ? 'justify-center px-0' : ''}`}
+                className={`flex items-center gap-3 px-4 py-3.5 text-gray-500 hover:text-gray-900 hover:bg-gray-50 font-bold tracking-wider text-sm rounded-lg transition-colors mb-2 ${isCollapsed ? 'justify-center px-0' : ''}`}
                 title={isCollapsed ? "VOLTAR" : ""}
               >
                 <ArrowLeft className="w-5 h-5 shrink-0" />
@@ -100,7 +100,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
 
               <Link
                 to={`/project/${projectId}`}
-                className={`flex items-center gap-3 px-4 py-3 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}`
+                className={`flex items-center gap-3 px-4 py-3.5 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}`
                   ? 'bg-orange-50 text-[#ff7f00]'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                   } ${isCollapsed ? 'justify-center px-0' : ''}`}
@@ -110,7 +110,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
                 {!isCollapsed && <span>DASHBOARD</span>}
               </Link>
 
-              <div className={`h-px bg-gray-200 mx-4 transition-all duration-300 ${isCollapsed ? 'my-0.5' : 'my-4'}`} />
+              <div className={`h-px bg-gray-200 mx-4 transition-all duration-300 ${isCollapsed ? 'my-0.5' : 'my-5'}`} />
  
               {!isCollapsed && (
                 <div className="pt-4 pb-2 px-4 text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">
@@ -120,7 +120,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
  
               <Link
                 to={`/project/${projectId}/kanban`}
-                className={`flex items-center gap-3 px-4 py-3 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/kanban`
+                className={`flex items-center gap-3 px-4 py-3.5 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/kanban`
                   ? 'bg-orange-50 text-[#ff7f00]'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                   } ${isCollapsed ? 'justify-center px-0' : ''}`}
@@ -132,7 +132,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
  
               <Link
                 to={`/project/${projectId}/quadro`}
-                className={`flex items-center gap-3 px-4 py-3 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/quadro`
+                className={`flex items-center gap-3 px-4 py-3.5 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/quadro`
                   ? 'bg-orange-50 text-[#ff7f00]'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                   } ${isCollapsed ? 'justify-center px-0' : ''}`}
@@ -144,7 +144,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
  
               <Link
                 to={`/project/${projectId}/calendar`}
-                className={`flex items-center gap-3 px-4 py-3 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/calendar`
+                className={`flex items-center gap-3 px-4 py-3.5 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/calendar`
                   ? 'bg-orange-50 text-[#ff7f00]'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                   } ${isCollapsed ? 'justify-center px-0' : ''}`}
@@ -156,7 +156,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
  
               <Link
                 to={`/project/${projectId}/inventory`}
-                className={`flex items-center gap-3 px-4 py-3 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/inventory`
+                className={`flex items-center gap-3 px-4 py-3.5 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/inventory`
                   ? 'bg-orange-50 text-[#ff7f00]'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                   } ${isCollapsed ? 'justify-center px-0' : ''}`}
@@ -168,7 +168,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
  
               <Link
                 to={`/project/${projectId}/assets`}
-                className={`flex items-center gap-3 px-4 py-3 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/assets`
+                className={`flex items-center gap-3 px-4 py-3.5 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/assets`
                   ? 'bg-orange-50 text-[#ff7f00]'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                   } ${isCollapsed ? 'justify-center px-0' : ''}`}
@@ -180,7 +180,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
  
               <Link
                 to={`/project/${projectId}/raci`}
-                className={`flex items-center gap-3 px-4 py-3 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/raci`
+                className={`flex items-center gap-3 px-4 py-3.5 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/raci`
                   ? 'bg-orange-50 text-[#ff7f00]'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                   } ${isCollapsed ? 'justify-center px-0' : ''}`}
@@ -192,7 +192,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
  
               <Link
                 to={`/project/${projectId}/gantt`}
-                className={`flex items-center gap-3 px-4 py-3 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/gantt`
+                className={`flex items-center gap-3 px-4 py-3.5 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/gantt`
                   ? 'bg-orange-50 text-[#ff7f00]'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                   } ${isCollapsed ? 'justify-center px-0' : ''}`}
@@ -204,7 +204,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
 
               <Link
                 to={`/project/${projectId}/finance`}
-                className={`flex items-center gap-3 px-4 py-3 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/finance`
+                className={`flex items-center gap-3 px-4 py-3.5 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/finance`
                   ? 'bg-orange-50 text-[#ff7f00]'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                   } ${isCollapsed ? 'justify-center px-0' : ''}`}
@@ -217,7 +217,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
               {/* Seção Configurações */}
               {(onOpenSettings || showMembersLink) && (
                 <>
-                  <div className={`h-px bg-gray-200 mx-4 transition-all duration-300 ${isCollapsed ? 'my-0.5' : 'my-4'}`} />
+                  <div className={`h-px bg-gray-200 mx-4 transition-all duration-300 ${isCollapsed ? 'my-0.5' : 'my-5'}`} />
                   {!isCollapsed && (
                     <div className="pt-6 pb-2 px-4 text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">
                       CONFIGURAÇÕES
@@ -227,7 +227,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
                   {onOpenSettings && (
                     <button
                       onClick={onOpenSettings}
-                      className={`w-full flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-[#ff7f00] hover:bg-orange-50 font-bold tracking-wider text-sm rounded-lg transition-colors text-left ${isCollapsed ? 'justify-center px-0' : ''}`}
+                      className={`w-full flex items-center gap-3 px-4 py-3.5 text-gray-500 hover:text-[#ff7f00] hover:bg-orange-50 font-bold tracking-wider text-sm rounded-lg transition-colors text-left ${isCollapsed ? 'justify-center px-0' : ''}`}
                       title={isCollapsed ? "PERSONALIZAR" : ""}
                     >
                       <Settings className="w-5 h-5 shrink-0" />
@@ -238,7 +238,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
                   {showMembersLink && (
                     <Link
                       to={`/project/${projectId}/membros`}
-                      className={`flex items-center gap-3 px-4 py-3 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/membros`
+                      className={`flex items-center gap-3 px-4 py-3.5 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/membros`
                         ? 'bg-orange-50 text-[#ff7f00]'
                         : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                         } ${isCollapsed ? 'justify-center px-0' : ''}`}
@@ -252,7 +252,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
                   {showMembersLink && (
                     <Link
                       to={`/project/${projectId}/tags`}
-                      className={`flex items-center gap-3 px-4 py-3 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/tags`
+                      className={`flex items-center gap-3 px-4 py-3.5 font-bold tracking-wider text-sm rounded-lg transition-colors ${location.pathname === `/project/${projectId}/tags`
                         ? 'bg-orange-50 text-[#ff7f00]'
                         : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                         } ${isCollapsed ? 'justify-center px-0' : ''}`}
@@ -291,7 +291,7 @@ export default function Sidebar({ projectId, projectName, onOpenSettings }: Side
         </div>
         <button
           onClick={handleLogout}
-          className={`w-full flex items-center gap-2 p-3 text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors rounded-lg font-bold tracking-wider text-sm ${isCollapsed ? 'justify-center' : 'justify-center'}`}
+          className={`w-full flex items-center gap-2 px-4 py-3.5 text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors rounded-lg font-bold tracking-wider text-sm ${isCollapsed ? 'justify-center' : 'justify-center'}`}
           title={isCollapsed ? "SAIR" : ""}
         >
           <LogOut className="w-4 h-4 shrink-0" />

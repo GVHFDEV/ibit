@@ -193,7 +193,7 @@ export interface GanttTask {
   description?: string;
   section?: string; // e.g. ENGENHARIA, PROJETO SOCIAL
   category?: string; // e.g. MILESTONE, HIGH RISK, GOAL...
-  dependencies?: string; // Custom arbitrary text
+  dependencies?: string[]; // Array of predecessor task IDs
   assignedTo?: string[]; // Array of projectMember UIDs or ProjectStakeholder IDs
   startDate: any; // Firestore Timestamp
   endDate: any; // Firestore Timestamp
