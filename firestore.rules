@@ -191,13 +191,25 @@ service cloud.firestore {
     }
 
     function isValidProjectStakeholder(data) {
-      return hasOnlyAllowedFields(['projectId', 'name', 'role', 'userId', 'photoURL', 'createdAt']) &&
+      return hasOnlyAllowedFields(['projectId', 'name', 'role', 'userId', 'photoURL', 'createdAt', 'description', 'organization', 'contactInfo', 'activities', 'tags', 'influenceLevel', 'interestLevel', 'expectations', 'engagementCurrent', 'engagementDesired', 'actionStrategy', 'updatedAt']) &&
              data.projectId is string &&
              data.name is string &&
              (!( 'role' in data ) || data.role is string) &&
              (!( 'userId' in data ) || data.userId is string) &&
              (!( 'photoURL' in data ) || data.photoURL is string) &&
-             data.createdAt is timestamp;
+             (!( 'description' in data ) || data.description is string) &&
+             (!( 'organization' in data ) || data.organization is string) &&
+             (!( 'contactInfo' in data ) || data.contactInfo is string) &&
+             (!( 'activities' in data ) || data.activities is string) &&
+             (!( 'tags' in data ) || data.tags is list) &&
+             (!( 'influenceLevel' in data ) || data.influenceLevel is string) &&
+             (!( 'interestLevel' in data ) || data.interestLevel is string) &&
+             (!( 'expectations' in data ) || data.expectations is string) &&
+             (!( 'engagementCurrent' in data ) || data.engagementCurrent is string) &&
+             (!( 'engagementDesired' in data ) || data.engagementDesired is string) &&
+             (!( 'actionStrategy' in data ) || data.actionStrategy is string) &&
+             data.createdAt is timestamp &&
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
     }
 
     function isValidTransaction(data) {

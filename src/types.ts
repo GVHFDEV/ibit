@@ -213,6 +213,18 @@ export interface ProjectStakeholder {
   userId?: string; // If it's a project member
   photoURL?: string;
   createdAt: any;
+  description?: string;
+  organization?: string;
+  contactInfo?: string;
+  activities?: string;
+  tags?: string[];
+  influenceLevel?: 'Alto' | 'Médio' | 'Baixo';
+  interestLevel?: 'Alto' | 'Médio' | 'Baixo';
+  expectations?: string;
+  engagementCurrent?: 'Desinformado' | 'Resistente' | 'Neutro' | 'Apoiador' | 'Engajado';
+  engagementDesired?: 'Desinformado' | 'Resistente' | 'Neutro' | 'Apoiador' | 'Engajado';
+  actionStrategy?: string;
+  updatedAt?: any;
 }
 
 export interface Transaction {
