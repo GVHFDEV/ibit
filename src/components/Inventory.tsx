@@ -17,7 +17,8 @@ import {
   updateDoc, 
   deleteDoc, 
   serverTimestamp,
-  orderBy
+  orderBy,
+  writeBatch
 } from 'firebase/firestore';
 import { InventoryItem, Project, UserProfile, Task, ProjectTag } from '../types';
 import { 
@@ -34,7 +35,8 @@ import {
   Check,
   ChevronDown,
   AlertTriangle,
-  User as UserIcon
+  User as UserIcon,
+  CheckSquare
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
@@ -62,6 +64,9 @@ export default function Inventory() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
 
   // 1. Fetch Project Data
   useEffect(() => {
@@ -148,6 +153,17 @@ export default function Inventory() {
     return matchesText || matchesTag;
   });
 
+  const selectedOrFilteredItems = selectedItems.length > 0
+    ? filteredItems.filter(item => selectedItems.includes(item.id))
+    : filteredItems;
+
+  const filteredTotalValue = selectedOrFilteredItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+
+  // Clean up selectedItems when inventory changes (e.g. items are deleted elsewhere)
+  useEffect(() => {
+    setSelectedItems(prev => prev.filter(id => inventory.some(item => item.id === id)));
+  }, [inventory]);
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
@@ -159,6 +175,20 @@ export default function Inventory() {
       setItemToDelete(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'inventory');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      const batch = writeBatch(db);
+      selectedItems.forEach((itemId) => {
+        batch.delete(doc(db, 'inventory', itemId));
+      });
+      await batch.commit();
+      setSelectedItems([]);
+      setIsBulkDeleteConfirmOpen(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'inventory (bulk)');
     }
   };
 
@@ -229,35 +259,92 @@ export default function Inventory() {
           </div>
         </header>
 
-        <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0 shadow-sm z-10">
-          <div className="flex items-center gap-0 sm:gap-6 w-full sm:w-auto">
-            <div className="hidden sm:flex items-center gap-2 shrink-0">
-              <Package className="w-5 h-5 text-[#ff7f00]" />
-              <h2 className="text-sm sm:text-lg font-bold text-gray-900 uppercase tracking-widest">
-                INVENTÁRIO
-              </h2>
+        <div className={clsx(
+          "border-b px-3 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0 shadow-sm z-10 transition-all duration-300",
+          selectedItems.length > 0 ? "bg-orange-50/80 border-orange-200" : "bg-white border-gray-100"
+        )}>
+          {selectedItems.length > 0 ? (
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-bold text-orange-800 uppercase tracking-widest">
+                  {selectedItems.length} {selectedItems.length === 1 ? 'PRODUTO SELECIONADO' : 'PRODUTOS SELECIONADOS'}
+                </span>
+                <button
+                  onClick={() => setSelectedItems([])}
+                  className="text-xs text-gray-500 hover:text-gray-900 font-bold uppercase tracking-widest border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all active:scale-95"
+                >
+                  LIMPAR SELEÇÃO
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedItems([]);
+                    setIsSelectionMode(false);
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-900 font-bold uppercase tracking-widest border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-all active:scale-95"
+                >
+                  SAIR DA SELEÇÃO
+                </button>
+              </div>
+              <button
+                onClick={() => setIsBulkDeleteConfirmOpen(true)}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg active:scale-95 shadow-md shadow-red-100"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>EXCLUIR SELECIONADOS</span>
+              </button>
             </div>
-            
-            <div className="relative flex-1 sm:w-64 sm:flex-none">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input 
-                type="text"
-                placeholder="Procurar..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#ff7f00] text-sm font-medium rounded-lg transition-all"
-              />
-            </div>
-          </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-0 sm:gap-6 w-full sm:w-auto">
+                <div className="hidden sm:flex items-center gap-2 shrink-0">
+                  <Package className="w-5 h-5 text-[#ff7f00]" />
+                  <h2 className="text-sm sm:text-lg font-bold text-gray-900 uppercase tracking-widest">
+                    INVENTÁRIO
+                  </h2>
+                </div>
+                
+                <div className="relative flex-1 sm:w-64 sm:flex-none">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input 
+                    type="text"
+                    placeholder="Procurar..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#ff7f00] text-sm font-medium rounded-lg transition-all"
+                  />
+                </div>
+              </div>
 
-          <button 
-            onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
-            className="bg-[#ff7f00] hover:bg-orange-600 text-white px-4 sm:px-5 py-2 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg active:scale-95 shadow-md shadow-orange-100 w-full sm:w-auto justify-center"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">ADICIONAR PRODUTO</span>
-            <span className="sm:hidden">ADICIONAR</span>
-          </button>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() => {
+                    if (isSelectionMode) {
+                      setSelectedItems([]);
+                    }
+                    setIsSelectionMode(!isSelectionMode);
+                  }}
+                  className={clsx(
+                    "px-4 py-2 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg active:scale-95 border shadow-sm w-full sm:w-auto justify-center",
+                    isSelectionMode
+                      ? "bg-[#ff7f00]/10 hover:bg-[#ff7f00]/20 border-orange-200 text-[#ff7f00]"
+                      : "bg-white hover:bg-orange-50 border-gray-200 text-gray-600 hover:text-[#ff7f00]"
+                  )}
+                >
+                  <CheckSquare className="w-4 h-4" />
+                  <span>{isSelectionMode ? 'CONCLUIR SELEÇÃO' : 'SELECIONAR'}</span>
+                </button>
+
+                <button 
+                  onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
+                  className="bg-[#ff7f00] hover:bg-orange-600 text-white px-4 sm:px-5 py-2 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg active:scale-95 shadow-md shadow-orange-100 w-full sm:w-auto justify-center"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">ADICIONAR PRODUTO</span>
+                  <span className="sm:hidden">ADICIONAR</span>
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex-1 overflow-auto p-3 sm:p-6 scrollbar-hide mobile-pb-nav">
@@ -265,6 +352,37 @@ export default function Inventory() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
+                  {isSelectionMode && (
+                    <th className="px-4 py-4 w-12 text-center">
+                      <div className="flex items-center justify-center">
+                        <input 
+                          type="checkbox"
+                          checked={filteredItems.length > 0 && filteredItems.every(item => selectedItems.includes(item.id))}
+                          ref={input => {
+                            if (input) {
+                              const allSelected = filteredItems.length > 0 && filteredItems.every(item => selectedItems.includes(item.id));
+                              const someSelected = filteredItems.some(item => selectedItems.includes(item.id));
+                              input.indeterminate = !allSelected && someSelected;
+                            }
+                          }}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              const newSelections = [...selectedItems];
+                              filteredItems.forEach(item => {
+                                if (!newSelections.includes(item.id)) {
+                                  newSelections.push(item.id);
+                                }
+                              });
+                              setSelectedItems(newSelections);
+                            } else {
+                              setSelectedItems(selectedItems.filter(id => !filteredItems.some(item => item.id === id)));
+                            }
+                          }}
+                          className="rounded border-gray-300 text-[#ff7f00] focus:ring-[#ff7f00] focus:ring-2 focus:ring-offset-2 w-4.5 h-4.5 cursor-pointer accent-[#ff7f00] transition-all hover:border-[#ff7f00]"
+                        />
+                      </div>
+                    </th>
+                  )}
                   <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">PRODUTO</th>
                   <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">LOCALIZAÇÃO</th>
                   <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">QUANTIDADE</th>
@@ -276,7 +394,31 @@ export default function Inventory() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredItems.map(item => (
-                  <tr key={item.id} className="hover:bg-gray-50 transition-colors group">
+                  <tr 
+                    key={item.id} 
+                    className={clsx(
+                      "transition-colors group",
+                      selectedItems.includes(item.id) ? "bg-orange-50/20 hover:bg-orange-50/40" : "hover:bg-gray-50"
+                    )}
+                  >
+                    {isSelectionMode && (
+                      <td className="px-4 py-4 text-center">
+                        <div className="flex items-center justify-center">
+                          <input 
+                            type="checkbox"
+                            checked={selectedItems.includes(item.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedItems([...selectedItems, item.id]);
+                              } else {
+                                setSelectedItems(selectedItems.filter(id => id !== item.id));
+                              }
+                            }}
+                            className="rounded border-gray-300 text-[#ff7f00] focus:ring-[#ff7f00] focus:ring-2 focus:ring-offset-2 w-4.5 h-4.5 cursor-pointer accent-[#ff7f00] transition-all hover:border-[#ff7f00]"
+                          />
+                        </div>
+                      </td>
+                    )}
                     <td className="px-4 py-4">
                       <div className="flex flex-col">
                         <span className="font-bold text-sm text-gray-900 tracking-wide text-pretty">{item.name}</span>
@@ -370,6 +512,28 @@ export default function Inventory() {
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className="bg-gray-50/80 border-t border-gray-200">
+                  <td className="px-4 py-4" colSpan={isSelectionMode ? 4 : 3}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                        {selectedItems.length > 0 ? "TOTAL SELECIONADO" : "TOTAL FILTRADO"}
+                      </span>
+                      <span className="text-xs font-bold text-gray-600 bg-gray-200/60 px-2 py-0.5 rounded-full">
+                        {selectedOrFilteredItems.length} {selectedOrFilteredItems.length === 1 ? 'PRODUTO' : 'PRODUTOS'}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-4 text-right pr-12" colSpan={4}>
+                    <div className="flex items-center justify-end gap-3">
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">VALOR TOTAL:</span>
+                      <span className="text-lg font-black text-[#ff7f00] tracking-wide">
+                        {formatCurrency(filteredTotalValue)}
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
@@ -392,6 +556,14 @@ export default function Inventory() {
             message={`Tem certeza que deseja excluir o produto "${itemToDelete.name}"? Esta ação não pode ser desfeita.`}
             onConfirm={handleDeleteItem}
             onCancel={() => setItemToDelete(null)}
+          />
+        )}
+        {isBulkDeleteConfirmOpen && (
+          <DeleteConfirmModal 
+            title="EXCLUIR PRODUTOS SELECIONADOS"
+            message={`Tem certeza que deseja excluir os ${selectedItems.length} produtos selecionados? Esta ação não pode ser desfeita.`}
+            onConfirm={handleBulkDelete}
+            onCancel={() => setIsBulkDeleteConfirmOpen(false)}
           />
         )}
       </AnimatePresence>

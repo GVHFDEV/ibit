@@ -248,3 +248,26 @@ export interface Budget {
   date: string; // 'YYYY-MM'
   createdAt: any; // Firestore Timestamp
 }
+
+export interface ProjectRisk {
+  id: string;
+  numericId: number;
+  projectId: string;
+  type: 'Interno' | 'Externo';
+  risk: string;
+  description?: string;
+  probability: 'B' | 'M' | 'A' | 'C'; // B = LOW, M = MEDIUM, A = HIGH, C = CRITICAL
+  impact: 1 | 2 | 3 | 4 | 5;
+  priority?: string;
+  responsible?: string;
+  actionPlan?: string;
+  status: 'Aberto' | 'Andamento' | 'Mitigado' | 'Encerrado';
+  lastReviewDate?: any; // Firestore Timestamp
+  createdAt: any; // Firestore Timestamp
+  updatedAt?: any;
+  tags?: string[];
+  impactAreas?: string[];
+  impactJustification?: string;
+  cause?: string;
+  externalType?: 'Ameaça' | 'Oportunidade';
+}

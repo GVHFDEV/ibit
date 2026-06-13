@@ -212,6 +212,29 @@ service cloud.firestore {
              (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
     }
 
+    function isValidProjectRisk(data) {
+      return hasOnlyAllowedFields(['projectId', 'numericId', 'type', 'risk', 'description', 'probability', 'impact', 'priority', 'responsible', 'actionPlan', 'status', 'lastReviewDate', 'createdAt', 'updatedAt', 'tags', 'impactAreas', 'impactJustification', 'cause', 'externalType']) &&
+             data.projectId is string &&
+             data.numericId is number &&
+             data.type in ['Interno', 'Externo'] &&
+             data.risk is string &&
+             (!( 'description' in data ) || data.description is string) &&
+             data.probability in ['B', 'M', 'A', 'C'] &&
+             data.impact is number &&
+             (!( 'priority' in data ) || data.priority is string) &&
+             (!( 'responsible' in data ) || data.responsible is string) &&
+             (!( 'actionPlan' in data ) || data.actionPlan is string) &&
+             data.status in ['Aberto', 'Andamento', 'Mitigado', 'Encerrado'] &&
+             (!( 'lastReviewDate' in data ) || data.lastReviewDate == null || data.lastReviewDate is timestamp) &&
+             data.createdAt is timestamp &&
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp) &&
+             (!( 'tags' in data ) || data.tags is list) &&
+             (!( 'impactAreas' in data ) || data.impactAreas is list) &&
+             (!( 'impactJustification' in data ) || data.impactJustification is string) &&
+             (!( 'cause' in data ) || data.cause is string) &&
+             (!( 'externalType' in data ) || data.externalType in ['Ameaça', 'Oportunidade']);
+    }
+
     function isValidTransaction(data) {
       return hasOnlyAllowedFields(['projectId', 'title', 'amount', 'date', 'category', 'type', 'budgetId', 'receiptUrl', 'createdAt']) &&
              data.projectId is string &&
@@ -446,6 +469,14 @@ service cloud.firestore {
       allow read: if isProjectMember(resource.data.projectId) || isAdmin();
       allow create: if (canWrite(request.resource.data.projectId) || isAdmin()) && isValidProjectStakeholder(request.resource.data);
       allow update: if (canWrite(resource.data.projectId) || isAdmin()) && isValidProjectStakeholder(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['projectId', 'createdAt']);
+      allow delete: if canWrite(resource.data.projectId) || isAdmin();
+    }
+
+    match /projectRisks/{riskId} {
+      allow read: if isProjectMember(resource.data.projectId) || isAdmin();
+      allow create: if (canWrite(request.resource.data.projectId) || isAdmin()) && isValidProjectRisk(request.resource.data);
+      allow update: if (canWrite(resource.data.projectId) || isAdmin()) && isValidProjectRisk(request.resource.data) &&
                     areImmutableFieldsUnchanged(['projectId', 'createdAt']);
       allow delete: if canWrite(resource.data.projectId) || isAdmin();
     }

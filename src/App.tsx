@@ -22,6 +22,7 @@ import ProjectMembers from './components/ProjectMembers';
 import ProjectTags from './components/ProjectTags';
 import PublicAudit from './components/PublicAudit';
 import Stakeholders from './components/Stakeholders';
+import RiskManagement from './components/RiskManagement';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -139,6 +140,14 @@ export default function App() {
               element={
                 <PrivateRoute>
                   <Stakeholders />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/project/:projectId/risks"
+              element={
+                <PrivateRoute>
+                  <RiskManagement />
                 </PrivateRoute>
               }
             />
