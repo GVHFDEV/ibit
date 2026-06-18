@@ -36,7 +36,9 @@ import {
   ChevronDown,
   AlertTriangle,
   User as UserIcon,
-  CheckSquare
+  CheckSquare,
+  Loader2,
+  Printer
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
@@ -44,6 +46,10 @@ import ProjectSettingsModal from './ProjectSettingsModal';
 import { handleFirestoreError, OperationType } from '../utils/errorHandlers';
 import { motion, AnimatePresence } from 'motion/react';
 import { TAG_COLORS } from './TaskDetailsModal';
+import { jsPDF } from 'jspdf';
+import { toPng } from 'html-to-image';
+// @ts-ignore
+import logoIbit from '../media/ibitlogo.svg';
 
 export default function Inventory() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -67,6 +73,7 @@ export default function Inventory() {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // 1. Fetch Project Data
   useEffect(() => {
@@ -192,6 +199,181 @@ export default function Inventory() {
     }
   };
 
+  const handleExportPDF = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+
+    try {
+      const container = document.createElement('div');
+      container.style.cssText = `
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 1200px;
+        padding: 40px;
+        background: #ffffff;
+        font-family: 'lufga', 'Inter', -apple-system, sans-serif;
+        box-sizing: border-box;
+        z-index: 50;
+        overflow: visible;
+      `;
+      document.body.appendChild(container);
+
+      // Header block
+      container.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #ff7f00;">
+          <div>
+            <div style="font-size: 24px; font-weight: 800; color: #111; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; line-height: 1;">${project?.name || 'Project'}</div>
+            <div style="font-size: 12px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 0.15em; margin-top: 2px; font-family: 'lufga', 'Inter', sans-serif;">Inventory Report</div>
+          </div>
+        </div>
+      `;
+
+      // Create Table Wrapper
+      const tableWrapper = document.createElement('div');
+      tableWrapper.style.cssText = 'border: 1px solid #e5e7eb; border-radius: 4px; overflow: hidden; background: #ffffff;';
+
+      const tableEl = document.createElement('table');
+      tableEl.style.cssText = 'width: 100%; border-collapse: collapse; text-align: left; table-layout: fixed;';
+
+      const headerHTML = `
+        <thead>
+          <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
+            <th style="padding: 12px 16px; font-size: 9px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; width: 30%;">Product</th>
+            <th style="padding: 12px 16px; font-size: 9px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; width: 20%;">Location</th>
+            <th style="padding: 12px 16px; font-size: 9px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; text-align: center; width: 10%;">Quantity</th>
+            <th style="padding: 12px 16px; font-size: 9px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; width: 15%;">Unit Price</th>
+            <th style="padding: 12px 16px; font-size: 9px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; width: 15%;">Total Price</th>
+            <th style="padding: 12px 16px; font-size: 9px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; width: 10%;">Tags</th>
+          </tr>
+        </thead>
+      `;
+
+      let bodyHTML = '<tbody>';
+      selectedOrFilteredItems.forEach((item, index) => {
+        const rowBg = index % 2 === 0 ? '#ffffff' : '#fafafa';
+        
+        // Tags logic
+        let tagsHTML = '';
+        if (item.tags && item.tags.length > 0) {
+          tagsHTML = '<div style="display: flex; flex-wrap: wrap; gap: 4px;">';
+          item.tags.forEach(tagId => {
+            const tag = projectTags.find(t => t.id === tagId);
+            if (tag) {
+              const isHex = tag.color?.startsWith('#');
+              const tagStyle = isHex 
+                ? `background-color: ${tag.color}; color: #ffffff; border: none;`
+                : `background-color: #f3f4f6; color: #374151; border: 1px solid #e5e7eb;`;
+              tagsHTML += `<span style="font-size: 8px; font-weight: 800; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; ${tagStyle}">${tag.label}</span>`;
+            }
+          });
+          tagsHTML += '</div>';
+        } else {
+          tagsHTML = '<span style="font-size: 10px; color: #9ca3af; font-weight: 500;">-</span>';
+        }
+
+        bodyHTML += `
+          <tr style="background: ${rowBg}; border-bottom: 1px solid #f3f4f6;">
+            <td style="padding: 12px 16px; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word;">
+              <div style="font-size: 11px; font-weight: 700; color: #111; text-transform: uppercase; letter-spacing: 0.02em; word-wrap: break-word; overflow-wrap: break-word;">${item.name.replace(/NÃO DEFINIDO/gi, 'NOT DEFINED')}</div>
+              ${item.description ? `<div style="font-size: 9px; color: #6b7280; margin-top: 2px; font-weight: 500; line-height: 1.3; word-break: break-word; overflow-wrap: anywhere;">${item.description.replace(/NÃO DEFINIDO/gi, 'NOT DEFINED')}</div>` : ''}
+            </td>
+            <td style="padding: 12px 16px; vertical-align: middle; font-size: 10px; font-weight: 700; color: #4b5563; text-transform: uppercase;">
+              ${item.location ? item.location.replace(/NÃO DEFINIDO/gi, 'NOT DEFINED') : 'NOT DEFINED'}
+            </td>
+            <td style="padding: 12px 16px; vertical-align: middle; text-align: center; font-size: 10px; font-weight: 700; color: #4b5563;">
+              ${item.quantity} un
+            </td>
+            <td style="padding: 12px 16px; vertical-align: middle; font-size: 10px; font-weight: 700; color: #4b5563;">
+              ${formatCurrency(item.unitPrice)}
+            </td>
+            <td style="padding: 12px 16px; vertical-align: middle; font-size: 10px; font-weight: 800; color: #111827;">
+              ${formatCurrency(item.quantity * item.unitPrice)}
+            </td>
+            <td style="padding: 12px 16px; vertical-align: middle;">
+              ${tagsHTML}
+            </td>
+          </tr>
+        `;
+      });
+      bodyHTML += '</tbody>';
+
+      tableEl.innerHTML = headerHTML + bodyHTML;
+      tableWrapper.appendChild(tableEl);
+      container.appendChild(tableWrapper);
+
+      // Summary section at bottom of table
+      const totalSection = document.createElement('div');
+      totalSection.style.cssText = `
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 32px;
+        margin-top: 24px;
+        padding-top: 16px;
+        border-top: 1px solid #e5e7eb;
+        font-family: 'lufga', 'Inter', sans-serif;
+      `;
+      totalSection.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 10px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif;">Total Items:</span>
+          <span style="font-size: 11px; font-weight: 700; color: #111827;">${selectedOrFilteredItems.length}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 10px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif;">Total Value:</span>
+          <span style="font-size: 14px; font-weight: 900; color: #ff7f00; font-family: 'lufga', 'Inter', sans-serif;">${formatCurrency(filteredTotalValue)}</span>
+        </div>
+      `;
+      container.appendChild(totalSection);
+
+      // Footer
+      const footer = document.createElement('div');
+      footer.style.cssText = 'display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 24px; padding-top: 12px; border-top: 1px solid #e5e7eb;';
+      footer.innerHTML = `<span style="font-size: 10px; color: #9ca3af; font-weight: 500;">Inventory report exported from the IBIT platform on ${new Date().toLocaleDateString('en-US')}</span>`;
+      
+      const fLogo = new window.Image();
+      fLogo.src = logoIbit;
+      fLogo.style.cssText = 'height: 30px; object-fit: contain;';
+      
+      await new Promise<void>((resolve) => {
+        fLogo.onload = () => resolve();
+        fLogo.onerror = () => resolve();
+      });
+      footer.appendChild(fLogo);
+      container.appendChild(footer);
+
+      // Capture and generate PDF (4K high-res)
+      await new Promise(r => setTimeout(r, 500));
+      const dataUrl = await toPng(container, { cacheBust: true, backgroundColor: '#ffffff', pixelRatio: 2.5 });
+
+      const tempPdf = new jsPDF();
+      const ip = tempPdf.getImageProperties(dataUrl);
+      const mg = 40;
+      const pdfWidth = 3840; // 4K resolution width
+      const pdfHeight = (pdfWidth - mg * 2) * (ip.height / ip.width) + mg * 2;
+
+      const pdf = new jsPDF({
+        orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
+        unit: 'pt',
+        format: [pdfWidth, pdfHeight]
+      });
+
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(0, 0, pdfWidth, pdfHeight, 'F');
+      pdf.addImage(dataUrl, 'PNG', mg, mg, pdfWidth - mg * 2, pdfHeight - mg * 2);
+
+      const projectNameStr = (project?.name || 'project').replace(/\s+/g, '-');
+      pdf.save(`inventory-${projectNameStr}-${new Date().toISOString().substring(0, 10)}.pdf`);
+
+      document.body.removeChild(container);
+    } catch (err) {
+      console.error('[Inventory PDF Export] Error:', err);
+      alert('Error exporting PDF. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   if (loading || !project) {
     return (
       <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">
@@ -285,13 +467,23 @@ export default function Inventory() {
                   SAIR DA SELEÇÃO
                 </button>
               </div>
-              <button
-                onClick={() => setIsBulkDeleteConfirmOpen(true)}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg active:scale-95 shadow-md shadow-red-100"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>EXCLUIR SELECIONADOS</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleExportPDF}
+                  disabled={isExporting}
+                  className="bg-white text-gray-700 border border-gray-300 px-4 py-2.5 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg hover:bg-gray-50 active:scale-95 disabled:opacity-50"
+                >
+                  {isExporting ? <Loader2 className="w-4 h-4 animate-spin text-[#ff7f00]" /> : <Printer className="w-4 h-4" />}
+                  <span>EXPORTAR PDF</span>
+                </button>
+                <button
+                  onClick={() => setIsBulkDeleteConfirmOpen(true)}
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg active:scale-95 shadow-md shadow-red-100"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>EXCLUIR SELECIONADOS</span>
+                </button>
+              </div>
             </div>
           ) : (
             <>
@@ -316,6 +508,15 @@ export default function Inventory() {
               </div>
 
               <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={handleExportPDF}
+                  disabled={isExporting || filteredItems.length === 0}
+                  className="bg-white text-gray-700 border border-gray-300 px-4 py-2 flex items-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg hover:bg-gray-50 active:scale-95 disabled:opacity-50 justify-center w-full sm:w-auto animate-fade-in"
+                >
+                  {isExporting ? <Loader2 className="w-4 h-4 animate-spin text-[#ff7f00]" /> : <Printer className="w-4 h-4" />}
+                  <span className="hidden sm:inline">EXPORTAR PDF</span>
+                  <span className="sm:hidden">EXPORTAR</span>
+                </button>
                 <button
                   onClick={() => {
                     if (isSelectionMode) {
@@ -580,6 +781,24 @@ export default function Inventory() {
       <AnimatePresence>
         {isProfileOpen && (
           <UserProfileModal onClose={() => setIsProfileOpen(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Exporting Overlay */}
+      <AnimatePresence>
+        {isExporting && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center gap-6"
+          >
+            <Loader2 className="w-12 h-12 text-[#ff7f00] animate-spin" />
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-gray-900 tracking-widest uppercase mb-2">Exportando PDF</h2>
+              <p className="text-sm text-gray-500 font-medium">Gerando relatório do inventário...</p>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
