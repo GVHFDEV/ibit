@@ -282,6 +282,43 @@ function GanttTaskModal({ task, onSave, onClose, participants, allTasks, taskIdT
               </div>
             </div>
           </form>
+
+          {/* HISTORY LOG SECTION */}
+          {task?.id && (
+            <div className="space-y-4 border-t border-gray-100 pt-6 mt-6">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">HISTÓRICO DE ALTERAÇÕES</label>
+              {task.changeLog && task.changeLog.length > 0 ? (
+              <div className="space-y-4 relative before:absolute before:inset-y-0 before:left-[11px] before:w-[2px] before:bg-gray-200">
+                {task.changeLog.map((log) => (
+                  <div key={log.id} className="relative flex gap-4">
+                    <div className="w-6 h-6 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center shrink-0 z-10 shadow-sm mt-0.5">
+                      <Clock className="w-3 h-3 text-gray-400" />
+                    </div>
+                    <div className="flex-1 bg-gray-50 rounded-xl p-4 border border-gray-100 shadow-sm">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-xs font-bold text-gray-700">{log.changedBy.name}</span>
+                        <span className="text-[10px] text-gray-400 font-medium">
+                          {log.changedAt ? new Date(log.changedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : ''}
+                        </span>
+                      </div>
+                      <ul className="space-y-1.5">
+                        {log.changes.map((change, idx) => (
+                          <li key={idx} className="text-[11px] text-gray-600">
+                            <span className="font-bold text-gray-700 uppercase tracking-wider">{change.field}:</span>{' '}
+                            <span className="text-red-500 line-through mr-1 text-[10px]">{change.oldValue || '-'}</span>
+                            <span className="text-green-600 font-medium text-[10px]">➔ {change.newValue || '-'}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              ) : (
+                <div className="text-[11px] text-gray-400 italic">Nenhum histórico de alterações disponível para esta função.</div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="p-6 border-t border-gray-200 flex justify-end gap-3 bg-gray-50 shrink-0">
@@ -646,8 +683,47 @@ export default function GanttChart() {
     if (!projectId) return;
     try {
       if (editingTask?.id) {
+        const changes: { field: string, oldValue: any, newValue: any }[] = [];
+        const fieldsToCheck: (keyof GanttTask)[] = ['title', 'description', 'startDate', 'endDate', 'progress', 'category', 'section', 'dependencies', 'assignedTo'];
+
+        fieldsToCheck.forEach(field => {
+          let oldVal = editingTask[field];
+          let newVal = taskData[field];
+
+          // Normalize dates for comparison
+          if (field === 'startDate' || field === 'endDate') {
+            oldVal = oldVal && (oldVal as any).seconds ? new Date((oldVal as any).seconds * 1000).toISOString().split('T')[0] : '';
+            newVal = newVal ? (newVal as Date).toISOString().split('T')[0] : '';
+          }
+          
+          // Arrays comparison (shallow)
+          if (Array.isArray(oldVal) || Array.isArray(newVal)) {
+            const arrOld = Array.isArray(oldVal) ? oldVal : [];
+            const arrNew = Array.isArray(newVal) ? newVal : [];
+            if (JSON.stringify([...arrOld].sort()) !== JSON.stringify([...arrNew].sort())) {
+              changes.push({ field, oldValue: arrOld.join(', '), newValue: arrNew.join(', ') });
+            }
+          } else if (oldVal !== newVal && !(oldVal === undefined && newVal === '')) {
+            changes.push({ field, oldValue: oldVal || '', newValue: newVal || '' });
+          }
+        });
+
+        const newChangeLog = [...(editingTask.changeLog || [])];
+        if (changes.length > 0) {
+          newChangeLog.unshift({
+            id: Math.random().toString(36).substr(2, 9),
+            changedAt: new Date().toISOString(),
+            changedBy: {
+              uid: user?.uid || 'unknown',
+              name: user?.displayName || user?.email || 'Usuário'
+            },
+            changes
+          });
+        }
+
         await updateDoc(doc(db, 'ganttTasks', editingTask.id), {
           ...taskData,
+          changeLog: newChangeLog,
           updatedAt: serverTimestamp()
         });
       } else {
@@ -655,6 +731,7 @@ export default function GanttChart() {
           ...taskData,
           projectId,
           order: tasks.length,
+          changeLog: [],
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });

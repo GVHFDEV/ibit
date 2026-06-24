@@ -172,7 +172,7 @@ service cloud.firestore {
 
     // GANTT & PROJECT STAKEHOLDERS
     function isValidGanttTask(data) {
-      return hasOnlyAllowedFields(['projectId', 'title', 'description', 'section', 'category', 'dependencies', 'assignedTo', 'startDate', 'endDate', 'status', 'progress', 'color', 'order', 'createdAt', 'updatedAt']) &&
+      return hasOnlyAllowedFields(['projectId', 'title', 'description', 'section', 'category', 'dependencies', 'assignedTo', 'startDate', 'endDate', 'status', 'progress', 'color', 'order', 'createdAt', 'updatedAt', 'changeLog']) &&
              data.projectId is string &&
              data.title is string &&
              (!( 'description' in data ) || data.description is string) &&
@@ -187,11 +187,12 @@ service cloud.firestore {
              (!( 'color' in data ) || data.color is string) &&
              data.order is number &&
              data.createdAt is timestamp &&
-             (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp) &&
+             (!( 'changeLog' in data ) || data.changeLog is list);
     }
 
     function isValidProjectStakeholder(data) {
-      return hasOnlyAllowedFields(['projectId', 'name', 'role', 'userId', 'photoURL', 'createdAt', 'description', 'organization', 'contactInfo', 'activities', 'tags', 'influenceLevel', 'interestLevel', 'expectations', 'engagementCurrent', 'engagementDesired', 'actionStrategy', 'updatedAt']) &&
+      return hasOnlyAllowedFields(['projectId', 'name', 'role', 'userId', 'photoURL', 'createdAt', 'description', 'organization', 'contactInfo', 'activities', 'tags', 'influenceLevel', 'interestLevel', 'expectations', 'engagementCurrent', 'engagementDesired', 'actionStrategy', 'updatedAt', 'communications']) &&
              data.projectId is string &&
              data.name is string &&
              (!( 'role' in data ) || data.role is string) &&
@@ -209,7 +210,8 @@ service cloud.firestore {
              (!( 'engagementDesired' in data ) || data.engagementDesired is string) &&
              (!( 'actionStrategy' in data ) || data.actionStrategy is string) &&
              data.createdAt is timestamp &&
-             (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp) &&
+             (!( 'communications' in data ) || data.communications is list);
     }
 
     function isValidProjectRisk(data) {

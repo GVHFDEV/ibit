@@ -203,6 +203,21 @@ export interface GanttTask {
   order: number;
   createdAt: any;
   updatedAt: any;
+  changeLog?: GanttTaskChange[];
+}
+
+export interface GanttTaskChange {
+  id: string;
+  changedAt: any; // Firestore Timestamp
+  changedBy: {
+    uid: string;
+    name: string;
+  };
+  changes: {
+    field: string;
+    oldValue: any;
+    newValue: any;
+  }[];
 }
 
 export interface ProjectStakeholder {
@@ -225,6 +240,14 @@ export interface ProjectStakeholder {
   engagementDesired?: 'Desinformado' | 'Resistente' | 'Neutro' | 'Apoiador' | 'Engajado';
   actionStrategy?: string;
   updatedAt?: any;
+  communications?: StakeholderCommunication[];
+}
+
+export interface StakeholderCommunication {
+  id: string;
+  what: string;
+  method: string;
+  when: string;
 }
 
 export interface Transaction {

@@ -47,7 +47,7 @@ import { toPng } from 'html-to-image';
 // @ts-ignore
 import logoIbit from '../media/ibitlogo.svg';
 
-type TabType = 'Lista' | 'Matriz';
+type TabType = 'Lista' | 'Matriz' | 'Plano';
 
 const ENGAGEMENT_LEVELS = [
   { id: 'Desinformado', label: 'Desinformado', color: 'bg-white text-gray-700 border-gray-300' },
@@ -78,6 +78,10 @@ export default function Stakeholders() {
   const [editingItem, setEditingItem] = useState<ProjectStakeholder | null>(null);
   const [itemToDelete, setItemToDelete] = useState<ProjectStakeholder | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+
+  // Communication Plan Modal State
+  const [isCommPlanModalOpen, setIsCommPlanModalOpen] = useState(false);
+  const [editingCommPlan, setEditingCommPlan] = useState<{ stakeholderId: string, planId?: string } | null>(null);
 
   // 1. Fetch Project Data
   useEffect(() => {
@@ -183,13 +187,13 @@ export default function Stakeholders() {
     await new Promise(r => setTimeout(r, 100));
 
     try {
-      const TOTAL_W = 2000;
+      const TOTAL_W = activeTab === 'Matriz' ? 2200 : 1600;
       
       const container = document.createElement('div');
-      container.style.cssText = `position:fixed;left:0;top:0;background:#fff;padding:50px;font-family:system-ui,-apple-system,sans-serif;width:${TOTAL_W}px;box-sizing:border-box;z-index:-50;overflow:visible;`;
+      container.style.cssText = `position:fixed;left:0;top:0;background:#fff;padding:50px;font-family:'Lufga','Inter',system-ui,-apple-system,sans-serif;width:${TOTAL_W}px;box-sizing:border-box;z-index:-50;overflow:visible;`;
       document.body.appendChild(container);
 
-      const titleText = activeTab === 'Lista' ? 'STAKEHOLDER LIST' : 'STAKEHOLDER ENGAGEMENT MATRIX';
+      const titleText = activeTab === 'Lista' ? 'STAKEHOLDER LIST' : activeTab === 'Matriz' ? 'STAKEHOLDER ENGAGEMENT MATRIX' : 'COMMUNICATION PLAN';
       const projectTitle = project?.name?.toUpperCase() || 'PROJECT';
       const projectSubtitle = project?.shortId ? `PROJECT ID: #${project.shortId}` : '';
 
@@ -301,7 +305,7 @@ export default function Stakeholders() {
             </table>
           </div>
         `;
-      } else {
+      } else if (activeTab === 'Matriz') {
         const translatedLevels = [
           { id: 'Desinformado', label: 'Uninformed' },
           { id: 'Resistente', label: 'Resistant' },
@@ -403,6 +407,53 @@ export default function Stakeholders() {
             </table>
           </div>
         `;
+      } else if (activeTab === 'Plano') {
+        let rowsHTML = '';
+        const allComms: { stakeholder: ProjectStakeholder, comm: any }[] = [];
+        stakeholders.forEach(sh => {
+          if (sh.communications && sh.communications.length > 0) {
+            sh.communications.forEach(c => allComms.push({ stakeholder: sh, comm: c }));
+          }
+        });
+
+        allComms.forEach(({ stakeholder, comm }) => {
+          rowsHTML += `
+            <tr style="border-bottom:1px solid #f3f4f6;">
+              <td style="padding:12px 12px;box-sizing:border-box;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <div style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;border:1px solid #ffedd5;background:#fff7ed;color:#ff7f00;box-sizing:border-box;">
+                    ${stakeholder.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div style="display:flex;flex-direction:column;text-align:left;">
+                    <span style="font-weight:800;font-size:14px;color:#111827;text-transform:uppercase;letter-spacing:0.02em;">${stakeholder.name}</span>
+                    <span style="font-size:11px;color:#6b7280;font-weight:600;margin-top:2px;">${stakeholder.role || '-'}</span>
+                  </div>
+                </div>
+              </td>
+              <td style="padding:12px 12px;font-size:13px;font-weight:600;color:#374151;text-align:left;text-transform:uppercase;box-sizing:border-box;">${comm.what}</td>
+              <td style="padding:12px 12px;font-size:13px;font-weight:600;color:#374151;text-align:center;text-transform:uppercase;box-sizing:border-box;">${comm.method}</td>
+              <td style="padding:12px 12px;font-size:13px;font-weight:600;color:#374151;text-align:center;text-transform:uppercase;box-sizing:border-box;">${comm.when}</td>
+            </tr>
+          `;
+        });
+
+        contentHTML = `
+          <div style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;background:#fff;box-sizing:border-box;">
+            <table style="width:100%;border-collapse:collapse;font-size:12px;box-sizing:border-box;">
+              <thead>
+                <tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb;">
+                  <th style="padding:16px 12px;text-align:left;font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;width:25%;box-sizing:border-box;">WHO TO CONTACT?</th>
+                  <th style="padding:16px 12px;text-align:left;font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;width:35%;box-sizing:border-box;">WHAT TO COMMUNICATE?</th>
+                  <th style="padding:16px 12px;text-align:center;font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;width:20%;box-sizing:border-box;">COMMUNICATION METHOD</th>
+                  <th style="padding:16px 12px;text-align:center;font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;width:20%;box-sizing:border-box;">WHEN TO COMMUNICATE?</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHTML}
+              </tbody>
+            </table>
+          </div>
+        `;
       }
 
       const legendHTML = `
@@ -430,22 +481,21 @@ export default function Stakeholders() {
       container.innerHTML = `
         ${headerHTML}
         ${contentHTML}
-        ${legendHTML}
+        ${activeTab === 'Matriz' ? legendHTML : ''}
         ${footerHTML}
       `;
 
       await new Promise(r => setTimeout(r, 400));
       
-      const dataUrl = await toPng(container, { cacheBust: true, backgroundColor: '#ffffff', pixelRatio: 2 });
+      const dataUrl = await toPng(container, { cacheBust: true, backgroundColor: '#ffffff', pixelRatio: 2.5 });
       
       const tempPdf = new jsPDF();
       const ip = tempPdf.getImageProperties(dataUrl);
-      const mg = 50;
+      const mg = 100;
       const pdfWidth = 3840;
-      const minHeight = pdfWidth / 1.414; // A4 aspect ratio (~2715)
       const drawWidth = pdfWidth - mg * 2;
       const drawHeight = drawWidth * (ip.height / ip.width);
-      const pdfHeight = Math.max(minHeight, drawHeight + mg * 2);
+      const pdfHeight = drawHeight + mg * 2 + 300; // Adds 300pt of white space at the bottom for breathing room
 
       const pdf = new jsPDF({
         orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
@@ -457,7 +507,7 @@ export default function Stakeholders() {
       pdf.rect(0, 0, pdfWidth, pdfHeight, 'F');
       pdf.addImage(dataUrl, 'PNG', mg, mg, drawWidth, drawHeight);
 
-      const pageName = activeTab === 'Lista' ? 'List' : 'Engagement-Matrix';
+      const pageName = activeTab === 'Lista' ? 'List' : activeTab === 'Matriz' ? 'Engagement-Matrix' : 'Communication-Plan';
       const projectNameStr = (project?.name || 'project').replace(/\s+/g, '-');
       pdf.save(`stakeholders-${projectNameStr}-${pageName}-${new Date().toISOString().substring(0, 10)}.pdf`);
 
@@ -562,6 +612,17 @@ export default function Stakeholders() {
                 <span className="hidden sm:inline">MATRIZ DE ENGAJAMENTO</span>
                 <span className="sm:hidden">MATRIZ</span>
               </button>
+              <button
+                onClick={() => setActiveTab('Plano')}
+                className={clsx(
+                  "flex items-center gap-2 px-4 py-2 rounded-md font-bold text-xs uppercase tracking-widest transition-all",
+                  activeTab === 'Plano' ? "bg-white text-[#ff7f00] shadow-sm" : "text-gray-500 hover:text-gray-900"
+                )}
+              >
+                <Briefcase className="w-4 h-4" />
+                <span className="hidden sm:inline">PLANO DE COMUNICAÇÃO</span>
+                <span className="sm:hidden">PLANO</span>
+              </button>
             </div>
 
             {activeTab === 'Lista' && (
@@ -589,13 +650,23 @@ export default function Stakeholders() {
               <span>EXPORTAR PDF</span>
             </button>
 
-            <button 
-              onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
-              className="bg-[#ff7f00] hover:bg-orange-600 text-white px-4 sm:px-5 py-2 flex items-center justify-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg active:scale-95 shadow-md shadow-orange-100 flex-1 sm:flex-none"
-            >
-              <Plus className="w-4 h-4" />
-              <span>NOVO STAKEHOLDER</span>
-            </button>
+            {activeTab === 'Plano' ? (
+              <button 
+                onClick={() => { setEditingCommPlan(null); setIsCommPlanModalOpen(true); }}
+                className="bg-[#ff7f00] hover:bg-orange-600 text-white px-4 sm:px-5 py-2 flex items-center justify-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg active:scale-95 shadow-md shadow-orange-100 flex-1 sm:flex-none"
+              >
+                <Plus className="w-4 h-4" />
+                <span>NOVO PLANO</span>
+              </button>
+            ) : (
+              <button 
+                onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
+                className="bg-[#ff7f00] hover:bg-orange-600 text-white px-4 sm:px-5 py-2 flex items-center justify-center gap-2 transition-all font-bold uppercase tracking-widest text-xs rounded-lg active:scale-95 shadow-md shadow-orange-100 flex-1 sm:flex-none"
+              >
+                <Plus className="w-4 h-4" />
+                <span>NOVO STAKEHOLDER</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -721,6 +792,79 @@ export default function Stakeholders() {
                     <tr>
                       <td colSpan={8} className="px-4 py-8 text-center text-gray-500 text-sm font-medium">
                         Nenhum stakeholder encontrado.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {activeTab === 'Plano' && (
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-x-auto shadow-sm">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[200px]">QUEM CONTACTAR?</th>
+                    <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[250px]">O QUE COMUNICAR?</th>
+                    <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[200px] text-center">MÉTODO DE COMUNICAÇÃO</th>
+                    <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[200px] text-center">QUANDO COMUNICAR?</th>
+                    <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">AÇÕES</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {stakeholders.flatMap(sh => 
+                    (sh.communications || []).map(comm => (
+                      <tr key={comm.id} className="hover:bg-gray-50 transition-colors group">
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-sm text-gray-900 tracking-wide uppercase">{sh.name}</span>
+                              {sh.role && <span className="text-xs text-gray-500 uppercase">{sh.role}</span>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="text-xs text-gray-600 font-bold uppercase">{comm.what}</span>
+                        </td>
+                        <td className="px-4 py-4 text-center">
+                          <span className="text-xs text-gray-600 font-bold uppercase">{comm.method}</span>
+                        </td>
+                        <td className="px-4 py-4 text-center">
+                          <span className="text-xs text-gray-600 font-bold uppercase">{comm.when}</span>
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <div className="flex justify-end gap-2 transition-opacity opacity-0 group-hover:opacity-100">
+                            <button 
+                              onClick={() => { setEditingCommPlan({ stakeholderId: sh.id, planId: comm.id }); setIsCommPlanModalOpen(true); }}
+                              className="p-1.5 bg-white border border-gray-200 hover:bg-orange-50 text-gray-400 hover:text-[#ff7f00] rounded transition-all shadow-sm"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={async () => {
+                                if (confirm('Tem certeza que deseja remover este plano de comunicação?')) {
+                                  try {
+                                    const newComms = sh.communications!.filter(c => c.id !== comm.id);
+                                    await updateDoc(doc(db, 'projectStakeholders', sh.id), { communications: newComms, updatedAt: serverTimestamp() });
+                                  } catch (err) {
+                                    handleFirestoreError(err, OperationType.UPDATE, 'projectStakeholders');
+                                  }
+                                }
+                              }}
+                              className="p-1.5 bg-white border border-gray-200 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded transition-all shadow-sm"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                  {(!stakeholders.some(sh => sh.communications && sh.communications.length > 0)) && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500 text-sm font-medium">
+                        Nenhum plano de comunicação cadastrado.
                       </td>
                     </tr>
                   )}
@@ -865,7 +1009,169 @@ export default function Stakeholders() {
             </div>
           </motion.div>
         )}
+        {isCommPlanModalOpen && (
+          <CommunicationPlanModal
+            isOpen={isCommPlanModalOpen}
+            onClose={() => { setIsCommPlanModalOpen(false); setEditingCommPlan(null); }}
+            stakeholders={stakeholders}
+            editingPlan={editingCommPlan}
+          />
+        )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+// --- Modals ---
+function CommunicationPlanModal({ isOpen, onClose, stakeholders, editingPlan }: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  stakeholders: ProjectStakeholder[];
+  editingPlan: { stakeholderId: string, planId?: string } | null;
+}) {
+  const [stakeholderId, setStakeholderId] = useState('');
+  const [what, setWhat] = useState('');
+  const [method, setMethod] = useState('');
+  const [when, setWhen] = useState('');
+
+  useEffect(() => {
+    if (editingPlan && editingPlan.planId) {
+      const sh = stakeholders.find(s => s.id === editingPlan.stakeholderId);
+      const plan = sh?.communications?.find(c => c.id === editingPlan.planId);
+      if (sh && plan) {
+        setStakeholderId(sh.id);
+        setWhat(plan.what);
+        setMethod(plan.method);
+        setWhen(plan.when);
+      }
+    } else {
+      setStakeholderId('');
+      setWhat('');
+      setMethod('');
+      setWhen('');
+    }
+  }, [editingPlan, stakeholders]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stakeholderId) {
+      alert("Selecione um Stakeholder.");
+      return;
+    }
+
+    try {
+      const sh = stakeholders.find(s => s.id === stakeholderId);
+      if (!sh) return;
+
+      let newComms = [...(sh.communications || [])];
+
+      if (editingPlan && editingPlan.planId) {
+        // Update existing
+        newComms = newComms.map(c => c.id === editingPlan.planId ? { id: c.id, what, method, when } : c);
+      } else {
+        // Create new
+        newComms.push({ id: Math.random().toString(36).substr(2, 9), what, method, when });
+      }
+
+      await updateDoc(doc(db, 'projectStakeholders', sh.id), {
+        communications: newComms,
+        updatedAt: serverTimestamp()
+      });
+
+      onClose();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'projectStakeholders');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-white border border-gray-200 w-full max-w-xl max-h-[90vh] overflow-hidden rounded-2xl flex flex-col shadow-xl"
+      >
+        <div className="flex justify-between items-center p-6 border-b border-gray-100 shrink-0">
+          <h3 className="text-xl font-bold text-gray-900 uppercase tracking-widest">
+            {editingPlan?.planId ? 'EDITAR PLANO DE COMUNICAÇÃO' : 'NOVO PLANO DE COMUNICAÇÃO'}
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-900 transition-colors">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        <form id="comm-plan-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide text-gray-900">
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Stakeholder *</label>
+            <select
+              value={stakeholderId}
+              onChange={(e) => setStakeholderId(e.target.value)}
+              disabled={!!(editingPlan && editingPlan.planId)}
+              className="w-full bg-white border border-gray-300 px-4 py-3 text-sm font-bold text-gray-900 focus:outline-none focus:border-[#ff7f00] rounded-lg disabled:opacity-50 cursor-pointer"
+              required
+            >
+              <option value="">Selecione um stakeholder</option>
+              {stakeholders.map(sh => (
+                <option key={sh.id} value={sh.id}>{sh.name} {sh.role ? `(${sh.role})` : ''}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">O que comunicar? *</label>
+            <input
+              type="text"
+              value={what}
+              onChange={(e) => setWhat(e.target.value)}
+              className="w-full bg-white border border-gray-300 px-4 py-3 text-gray-900 focus:outline-none focus:border-[#ff7f00] rounded-lg placeholder-gray-400 uppercase"
+              placeholder="Ex: Resultados da Regional"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Método de Comunicação *</label>
+            <input
+              type="text"
+              value={method}
+              onChange={(e) => setMethod(e.target.value)}
+              className="w-full bg-white border border-gray-300 px-4 py-3 text-gray-900 focus:outline-none focus:border-[#ff7f00] rounded-lg placeholder-gray-400 uppercase"
+              placeholder="Ex: Video Chamada"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Quando comunicar? *</label>
+            <input
+              type="text"
+              value={when}
+              onChange={(e) => setWhen(e.target.value)}
+              className="w-full bg-white border border-gray-300 px-4 py-3 text-gray-900 focus:outline-none focus:border-[#ff7f00] rounded-lg placeholder-gray-400 uppercase"
+              placeholder="Ex: Toda vez que o resultado sair"
+              required
+            />
+          </div>
+        </form>
+
+        <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3 shrink-0 rounded-b-2xl">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-bold uppercase tracking-widest text-xs rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            CANCELAR
+          </button>
+          <button
+            type="submit"
+            form="comm-plan-form"
+            className="px-8 py-2.5 bg-[#ff7f00] text-white font-bold uppercase tracking-widest text-xs rounded-lg hover:bg-orange-600 transition-all active:scale-95 shadow-md shadow-orange-200"
+          >
+            SALVAR
+          </button>
+        </div>
+      </motion.div>
     </div>
   );
 }
