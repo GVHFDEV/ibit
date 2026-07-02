@@ -209,8 +209,8 @@ export default function Inventory() {
         position: fixed;
         left: 0;
         top: 0;
-        width: 1200px;
-        padding: 40px;
+        width: 564px;
+        padding: 30px;
         background: #ffffff;
         font-family: 'lufga', 'Inter', -apple-system, sans-serif;
         box-sizing: border-box;
@@ -223,8 +223,8 @@ export default function Inventory() {
       container.innerHTML = `
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #ff7f00;">
           <div>
-            <div style="font-size: 24px; font-weight: 800; color: #111; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; line-height: 1;">${project?.name || 'Project'}</div>
-            <div style="font-size: 12px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 0.15em; margin-top: 2px; font-family: 'lufga', 'Inter', sans-serif;">Inventory Report</div>
+            <div style="font-size: 20px; font-weight: 800; color: #111; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; line-height: 1;">${project?.name || 'Project'}</div>
+            <div style="font-size: 11px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 0.15em; margin-top: 2px; font-family: 'lufga', 'Inter', sans-serif;">Inventory Report</div>
           </div>
         </div>
       `;
@@ -239,12 +239,12 @@ export default function Inventory() {
       const headerHTML = `
         <thead>
           <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
-            <th style="padding: 12px 16px; font-size: 9px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; width: 30%;">Product</th>
-            <th style="padding: 12px 16px; font-size: 9px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; width: 20%;">Location</th>
-            <th style="padding: 12px 16px; font-size: 9px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; text-align: center; width: 10%;">Quantity</th>
-            <th style="padding: 12px 16px; font-size: 9px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; width: 15%;">Unit Price</th>
-            <th style="padding: 12px 16px; font-size: 9px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; width: 15%;">Total Price</th>
-            <th style="padding: 12px 16px; font-size: 9px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; width: 10%;">Tags</th>
+            <th style="padding: 10px 8px; font-size: 8px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; width: 25%;">Product</th>
+            <th style="padding: 10px 8px; font-size: 8px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; width: 15%;">Location</th>
+            <th style="padding: 10px 8px; font-size: 8px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; text-align: center; width: 10%;">Qty</th>
+            <th style="padding: 10px 8px; font-size: 8px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; width: 15%;">Price</th>
+            <th style="padding: 10px 8px; font-size: 8px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; width: 15%;">Total</th>
+            <th style="padding: 10px 8px; font-size: 8px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif; width: 20%;">Tags</th>
           </tr>
         </thead>
       `;
@@ -264,33 +264,33 @@ export default function Inventory() {
               const tagStyle = isHex 
                 ? `background-color: ${tag.color}; color: #ffffff; border: none;`
                 : `background-color: #f3f4f6; color: #374151; border: 1px solid #e5e7eb;`;
-              tagsHTML += `<span style="font-size: 8px; font-weight: 800; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; ${tagStyle}">${tag.label}</span>`;
+              tagsHTML += `<span style="font-size: 7px; font-weight: 800; padding: 2px 4px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; ${tagStyle}">${tag.label}</span>`;
             }
           });
           tagsHTML += '</div>';
         } else {
-          tagsHTML = '<span style="font-size: 10px; color: #9ca3af; font-weight: 500;">-</span>';
+          tagsHTML = '<span style="font-size: 8px; color: #9ca3af; font-weight: 500;">-</span>';
         }
 
         bodyHTML += `
           <tr style="background: ${rowBg}; border-bottom: 1px solid #f3f4f6;">
-            <td style="padding: 12px 16px; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word;">
-              <div style="font-size: 11px; font-weight: 700; color: #111; text-transform: uppercase; letter-spacing: 0.02em; word-wrap: break-word; overflow-wrap: break-word;">${item.name.replace(/NÃO DEFINIDO/gi, 'NOT DEFINED')}</div>
-              ${item.description ? `<div style="font-size: 9px; color: #6b7280; margin-top: 2px; font-weight: 500; line-height: 1.3; word-break: break-word; overflow-wrap: anywhere;">${item.description.replace(/NÃO DEFINIDO/gi, 'NOT DEFINED')}</div>` : ''}
+            <td style="padding: 10px 8px; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word;">
+              <div style="font-size: 9px; font-weight: 700; color: #111; text-transform: uppercase; letter-spacing: 0.02em; word-wrap: break-word; overflow-wrap: break-word;">${item.name.replace(/NÃO DEFINIDO/gi, 'NOT DEFINED')}</div>
+              ${item.description ? `<div style="font-size: 8px; color: #6b7280; margin-top: 2px; font-weight: 500; line-height: 1.3; word-break: break-all; overflow-wrap: anywhere;">${item.description.replace(/NÃO DEFINIDO/gi, 'NOT DEFINED')}</div>` : ''}
             </td>
-            <td style="padding: 12px 16px; vertical-align: middle; font-size: 10px; font-weight: 700; color: #4b5563; text-transform: uppercase;">
+            <td style="padding: 10px 8px; vertical-align: middle; font-size: 8px; font-weight: 700; color: #4b5563; text-transform: uppercase; word-wrap: break-word; overflow-wrap: break-word;">
               ${item.location ? item.location.replace(/NÃO DEFINIDO/gi, 'NOT DEFINED') : 'NOT DEFINED'}
             </td>
-            <td style="padding: 12px 16px; vertical-align: middle; text-align: center; font-size: 10px; font-weight: 700; color: #4b5563;">
+            <td style="padding: 10px 8px; vertical-align: middle; text-align: center; font-size: 8px; font-weight: 700; color: #4b5563;">
               ${item.quantity} un
             </td>
-            <td style="padding: 12px 16px; vertical-align: middle; font-size: 10px; font-weight: 700; color: #4b5563;">
+            <td style="padding: 10px 8px; vertical-align: middle; font-size: 8px; font-weight: 700; color: #4b5563;">
               ${formatCurrency(item.unitPrice)}
             </td>
-            <td style="padding: 12px 16px; vertical-align: middle; font-size: 10px; font-weight: 800; color: #111827;">
+            <td style="padding: 10px 8px; vertical-align: middle; font-size: 8px; font-weight: 800; color: #111827;">
               ${formatCurrency(item.quantity * item.unitPrice)}
             </td>
-            <td style="padding: 12px 16px; vertical-align: middle;">
+            <td style="padding: 10px 8px; vertical-align: middle;">
               ${tagsHTML}
             </td>
           </tr>
@@ -308,32 +308,32 @@ export default function Inventory() {
         display: flex;
         justify-content: flex-end;
         align-items: center;
-        gap: 32px;
-        margin-top: 24px;
-        padding-top: 16px;
+        gap: 16px;
+        margin-top: 16px;
+        padding-top: 12px;
         border-top: 1px solid #e5e7eb;
         font-family: 'lufga', 'Inter', sans-serif;
       `;
       totalSection.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 10px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif;">Total Items:</span>
-          <span style="font-size: 11px; font-weight: 700; color: #111827;">${selectedOrFilteredItems.length}</span>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 8px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif;">Total Items:</span>
+          <span style="font-size: 9px; font-weight: 700; color: #111827;">${selectedOrFilteredItems.length}</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 10px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif;">Total Value:</span>
-          <span style="font-size: 14px; font-weight: 900; color: #ff7f00; font-family: 'lufga', 'Inter', sans-serif;">${formatCurrency(filteredTotalValue)}</span>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 8px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'lufga', 'Inter', sans-serif;">Total Value:</span>
+          <span style="font-size: 11px; font-weight: 900; color: #ff7f00; font-family: 'lufga', 'Inter', sans-serif;">${formatCurrency(filteredTotalValue)}</span>
         </div>
       `;
       container.appendChild(totalSection);
 
       // Footer
       const footer = document.createElement('div');
-      footer.style.cssText = 'display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 24px; padding-top: 12px; border-top: 1px solid #e5e7eb;';
-      footer.innerHTML = `<span style="font-size: 10px; color: #9ca3af; font-weight: 500;">Inventory report exported from the IBIT platform on ${new Date().toLocaleDateString('en-US')}</span>`;
+      footer.style.cssText = 'display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 16px; padding-top: 10px; border-top: 1px solid #e5e7eb;';
+      footer.innerHTML = `<span style="font-size: 8px; color: #9ca3af; font-weight: 500;">Inventory report exported from the IBIT platform on ${new Date().toLocaleDateString('en-US')}</span>`;
       
       const fLogo = new window.Image();
       fLogo.src = logoIbit;
-      fLogo.style.cssText = 'height: 30px; object-fit: contain;';
+      fLogo.style.cssText = 'height: 24px; object-fit: contain;';
       
       await new Promise<void>((resolve) => {
         fLogo.onload = () => resolve();
@@ -342,14 +342,14 @@ export default function Inventory() {
       footer.appendChild(fLogo);
       container.appendChild(footer);
 
-      // Capture and generate PDF (4K high-res)
+      // Capture and generate PDF (high-res 1:1 scale)
       await new Promise(r => setTimeout(r, 500));
       const dataUrl = await toPng(container, { cacheBust: true, backgroundColor: '#ffffff', pixelRatio: 2.5 });
 
       const tempPdf = new jsPDF();
       const ip = tempPdf.getImageProperties(dataUrl);
-      const mg = 40;
-      const pdfWidth = 3840; // 4K resolution width
+      const mg = 30;
+      const pdfWidth = 564; // Adjusted to narrow width requested (564 points)
       const pdfHeight = (pdfWidth - mg * 2) * (ip.height / ip.width) + mg * 2;
 
       const pdf = new jsPDF({
