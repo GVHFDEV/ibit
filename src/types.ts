@@ -248,6 +248,7 @@ export interface StakeholderCommunication {
   what: string;
   method: string;
   when: string;
+  responsible?: string;
 }
 
 export interface Transaction {

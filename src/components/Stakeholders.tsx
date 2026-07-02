@@ -417,6 +417,9 @@ export default function Stakeholders() {
         });
 
         allComms.forEach(({ stakeholder, comm }) => {
+          const member = projectMembers.find(m => m.uid === comm.responsible);
+          const respName = member ? member.name.toUpperCase() : '-';
+
           rowsHTML += `
             <tr style="border-bottom:1px solid #f3f4f6;">
               <td style="padding:12px 12px;box-sizing:border-box;">
@@ -433,6 +436,7 @@ export default function Stakeholders() {
               <td style="padding:12px 12px;font-size:13px;font-weight:600;color:#374151;text-align:left;text-transform:uppercase;box-sizing:border-box;">${comm.what}</td>
               <td style="padding:12px 12px;font-size:13px;font-weight:600;color:#374151;text-align:center;text-transform:uppercase;box-sizing:border-box;">${comm.method}</td>
               <td style="padding:12px 12px;font-size:13px;font-weight:600;color:#374151;text-align:center;text-transform:uppercase;box-sizing:border-box;">${comm.when}</td>
+              <td style="padding:12px 12px;font-size:13px;font-weight:600;color:#374151;text-align:center;text-transform:uppercase;box-sizing:border-box;">${respName}</td>
             </tr>
           `;
         });
@@ -443,9 +447,10 @@ export default function Stakeholders() {
               <thead>
                 <tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb;">
                   <th style="padding:16px 12px;text-align:left;font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;width:25%;box-sizing:border-box;">WHO TO CONTACT?</th>
-                  <th style="padding:16px 12px;text-align:left;font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;width:35%;box-sizing:border-box;">WHAT TO COMMUNICATE?</th>
-                  <th style="padding:16px 12px;text-align:center;font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;width:20%;box-sizing:border-box;">COMMUNICATION METHOD</th>
-                  <th style="padding:16px 12px;text-align:center;font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;width:20%;box-sizing:border-box;">WHEN TO COMMUNICATE?</th>
+                  <th style="padding:16px 12px;text-align:left;font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;width:25%;box-sizing:border-box;">WHAT TO COMMUNICATE?</th>
+                  <th style="padding:16px 12px;text-align:center;font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;width:15%;box-sizing:border-box;">COMMUNICATION METHOD</th>
+                  <th style="padding:16px 12px;text-align:center;font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;width:15%;box-sizing:border-box;">WHEN TO COMMUNICATE?</th>
+                  <th style="padding:16px 12px;text-align:center;font-size:11px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;width:20%;box-sizing:border-box;">RESPONSIBLE</th>
                 </tr>
               </thead>
               <tbody>
@@ -809,6 +814,7 @@ export default function Stakeholders() {
                     <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[250px]">O QUE COMUNICAR?</th>
                     <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[200px] text-center">MÉTODO DE COMUNICAÇÃO</th>
                     <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[200px] text-center">QUANDO COMUNICAR?</th>
+                    <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[200px] text-center">RESPONSÁVEL</th>
                     <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">AÇÕES</th>
                   </tr>
                 </thead>
@@ -832,6 +838,28 @@ export default function Stakeholders() {
                         </td>
                         <td className="px-4 py-4 text-center">
                           <span className="text-xs text-gray-600 font-bold uppercase">{comm.when}</span>
+                        </td>
+                        <td className="px-4 py-4 text-center">
+                          {comm.responsible ? (
+                            (() => {
+                              const member = projectMembers.find(m => m.uid === comm.responsible);
+                              if (!member) return <span className="text-xs text-gray-400 font-mono">-</span>;
+                              return (
+                                <div className="inline-flex items-center gap-2">
+                                  {member.photoURL ? (
+                                    <img src={member.photoURL} alt={member.name} className="w-6 h-6 rounded-full border border-gray-200 object-cover" />
+                                  ) : (
+                                    <div className="w-6 h-6 bg-orange-100 text-[#ff7f00] rounded-full flex items-center justify-center font-bold text-[10px] border border-orange-200 uppercase">
+                                      {member.name.charAt(0)}
+                                    </div>
+                                  )}
+                                  <span className="text-xs text-gray-600 font-bold uppercase">{member.name}</span>
+                                </div>
+                              );
+                            })()
+                          ) : (
+                            <span className="text-xs text-gray-400 font-bold">-</span>
+                          )}
                         </td>
                         <td className="px-4 py-4 text-right">
                           <div className="flex justify-end gap-2 transition-opacity opacity-0 group-hover:opacity-100">
@@ -863,7 +891,7 @@ export default function Stakeholders() {
                   )}
                   {(!stakeholders.some(sh => sh.communications && sh.communications.length > 0)) && (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500 text-sm font-medium">
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500 text-sm font-medium">
                         Nenhum plano de comunicação cadastrado.
                       </td>
                     </tr>
@@ -1015,6 +1043,7 @@ export default function Stakeholders() {
             onClose={() => { setIsCommPlanModalOpen(false); setEditingCommPlan(null); }}
             stakeholders={stakeholders}
             editingPlan={editingCommPlan}
+            projectMembers={projectMembers}
           />
         )}
       </AnimatePresence>
@@ -1023,16 +1052,18 @@ export default function Stakeholders() {
 }
 
 // --- Modals ---
-function CommunicationPlanModal({ isOpen, onClose, stakeholders, editingPlan }: { 
+function CommunicationPlanModal({ isOpen, onClose, stakeholders, editingPlan, projectMembers }: { 
   isOpen: boolean; 
   onClose: () => void; 
   stakeholders: ProjectStakeholder[];
   editingPlan: { stakeholderId: string, planId?: string } | null;
+  projectMembers: UserProfile[];
 }) {
   const [stakeholderId, setStakeholderId] = useState('');
   const [what, setWhat] = useState('');
   const [method, setMethod] = useState('');
   const [when, setWhen] = useState('');
+  const [responsible, setResponsible] = useState('');
 
   useEffect(() => {
     if (editingPlan && editingPlan.planId) {
@@ -1043,12 +1074,14 @@ function CommunicationPlanModal({ isOpen, onClose, stakeholders, editingPlan }: 
         setWhat(plan.what);
         setMethod(plan.method);
         setWhen(plan.when);
+        setResponsible(plan.responsible || '');
       }
     } else {
       setStakeholderId('');
       setWhat('');
       setMethod('');
       setWhen('');
+      setResponsible('');
     }
   }, [editingPlan, stakeholders]);
 
@@ -1067,10 +1100,10 @@ function CommunicationPlanModal({ isOpen, onClose, stakeholders, editingPlan }: 
 
       if (editingPlan && editingPlan.planId) {
         // Update existing
-        newComms = newComms.map(c => c.id === editingPlan.planId ? { id: c.id, what, method, when } : c);
+        newComms = newComms.map(c => c.id === editingPlan.planId ? { id: c.id, what, method, when, responsible } : c);
       } else {
         // Create new
-        newComms.push({ id: Math.random().toString(36).substr(2, 9), what, method, when });
+        newComms.push({ id: Math.random().toString(36).substr(2, 9), what, method, when, responsible });
       }
 
       await updateDoc(doc(db, 'projectStakeholders', sh.id), {
@@ -1152,6 +1185,20 @@ function CommunicationPlanModal({ isOpen, onClose, stakeholders, editingPlan }: 
               placeholder="Ex: Toda vez que o resultado sair"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Responsável</label>
+            <select
+              value={responsible}
+              onChange={(e) => setResponsible(e.target.value)}
+              className="w-full bg-white border border-gray-300 px-4 py-3 text-sm font-bold text-gray-900 focus:outline-none focus:border-[#ff7f00] rounded-lg cursor-pointer"
+            >
+              <option value="">Selecione um responsável</option>
+              {projectMembers.map(member => (
+                <option key={member.uid} value={member.uid}>{member.name}</option>
+              ))}
+            </select>
           </div>
         </form>
 
