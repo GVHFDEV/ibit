@@ -1114,7 +1114,7 @@ export default function GanttChart() {
 
       const ROW_H = 26;
       const LEFT_W = 970;
-      const cellW = Math.max(16, Math.min(32, Math.floor(2500 / totalDays)));
+      const cellW = Math.max(8, Math.min(16, Math.floor(800 / totalDays)));
       const TIMELINE_W = totalDays * cellW;
       const TOTAL_W = LEFT_W + TIMELINE_W + 96;
       const MN = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
@@ -1127,7 +1127,7 @@ export default function GanttChart() {
       const body = document.createElement('div');
       body.style.cssText = 'display:flex;border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;';
 
-      // LEFT PANEL (9 columns - ASSIGNEES increased to 220px)
+      // LEFT PANEL (9 columns)
       const left = document.createElement('div');
       left.style.cssText = `width:${LEFT_W}px;flex-shrink:0;border-right:2px solid #e5e7eb;`;
       left.innerHTML = `<div style="display:grid;grid-template-columns:40px 1fr 90px 220px 70px 70px 60px 70px 60px;height:${ROW_H*2}px;background:#f9fafb;border-bottom:2px solid #e5e7eb;"><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:8px;font-weight:800;color:#9ca3af;">NO.</div><div style="padding:4px 8px;display:flex;align-items:center;border-right:1px solid #e5e7eb;font-size:8px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;">TASK</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:7px;font-weight:800;color:#9ca3af;text-transform:uppercase;">CATEGORY</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:7px;font-weight:800;color:#9ca3af;text-transform:uppercase;">ASSIGNEES</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:7px;font-weight:800;color:#9ca3af;text-transform:uppercase;">START</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:7px;font-weight:800;color:#9ca3af;text-transform:uppercase;">FINISH</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:7px;font-weight:800;color:#9ca3af;text-transform:uppercase;">DURATION</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;border-right:1px solid #e5e7eb;font-size:7px;font-weight:800;color:#9ca3af;text-transform:uppercase;">DEP.</div><div style="padding:4px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:#9ca3af;text-transform:uppercase;">PROG.</div></div>`;
@@ -1406,7 +1406,7 @@ export default function GanttChart() {
       const tempPdf = new jsPDF();
       const ip = tempPdf.getImageProperties(dataUrl);
       const mg = 40; // margin
-      const pdfWidth = 3840; // Extremely high resolution 4K width
+      const pdfWidth = TOTAL_W; // Reduced document width to facilitate readability
       const pdfHeight = (pdfWidth - mg * 2) * (ip.height / ip.width) + mg * 2;
       
       const pdf = new jsPDF({ 
